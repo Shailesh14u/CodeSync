@@ -310,7 +310,7 @@ export const DashboardPage: React.FC = () => {
                       variant="primary"
                       size="sm"
                       className="flex-1 text-xs h-8"
-                      onClick={() => alert(`Connecting to Monaco IDE & Yjs CRDT for workspace "${ws.name}" in Phase 3 & 4!`)}
+                      onClick={() => navigate(`/workspace/${ws.id}`)}
                       rightIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
                     >
                       Open IDE
