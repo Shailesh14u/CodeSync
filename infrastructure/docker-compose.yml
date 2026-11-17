@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: codesync-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-codesync_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codesync_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-codesync_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-codesync_user} -d ${POSTGRES_DB:-codesync_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codesync-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: codesync-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - codesync-network
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: codesync-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - APP_ENV=development
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-codesync-ai-super-secret-key-change-in-production-min-32-chars}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-codesync_user}:${POSTGRES_PASSWORD:-codesync_secure_password}@postgres:5432/${POSTGRES_DB:-codesync_db}
+      - REDIS_URL=redis://redis:6379/0
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+      - COLLAB_SERVER_URL=${COLLAB_SERVER_URL:-ws://localhost:1234}
+      - AI_PROVIDER=${AI_PROVIDER:-gemini}
+      - AI_API_KEY=${AI_API_KEY:-}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ../backend:/app
+    networks:
+      - codesync-network
+
+  collaboration-server:
+    build:
+      context: ../collaboration-server
+      dockerfile: Dockerfile
+    container_name: codesync-collab
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - redis
+    environment:
+      - PORT=1234
+      - BACKEND_URL=http://backend:8000
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "${COLLAB_SERVER_PORT:-1234}:1234"
+    volumes:
+      - ../collaboration-server:/app
+      - /app/node_modules
+    networks:
+      - codesync-network
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: codesync-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - collaboration-server
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_COLLAB_WS_URL=ws://localhost:1234
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    networks:
+      - codesync-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  codesync-network:
+    driver: bridge

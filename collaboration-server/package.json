@@ -1,0 +1,17 @@
+{
+  "name": "codesync-collaboration-server",
+  "version": "0.1.0",
+  "description": "Real-time collaborative editing server powered by Hocuspocus and Yjs for CodeSync AI",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "@hocuspocus/server": "^2.13.5",
+    "yjs": "^13.6.20"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
