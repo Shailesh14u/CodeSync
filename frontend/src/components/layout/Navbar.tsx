@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Code2, Terminal, Users, Sparkles, Activity, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Code2, ChevronRight, LogOut, LayoutDashboard, User } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { apiService } from '../../services/api';
+import { useAuthStore } from '../../stores/authStore';
 
 export const Navbar: React.FC = () => {
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'degraded'>('checking');
   const [version, setVersion] = useState<string>('v0.1.0');
+
+  const { isAuthenticated, user, logout } = useAuthStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     let isMounted = true;
@@ -31,7 +36,7 @@ export const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand */}
         <div className="flex items-center gap-3">
-          <a href="/" className="flex items-center gap-2.5 group">
+          <Link to="/" className="flex items-center gap-2.5 group">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-accent-primary to-accent-secondary flex items-center justify-center text-white shadow-glow-primary transition-transform group-hover:scale-105">
               <Code2 className="w-5 h-5" />
             </div>
@@ -43,7 +48,7 @@ export const Navbar: React.FC = () => {
                 </span>
               </div>
             </div>
-          </a>
+          </Link>
 
           {/* System status pill */}
           <div className="hidden md:flex items-center ml-4">
@@ -65,11 +70,16 @@ export const Navbar: React.FC = () => {
 
         {/* Navigation Links */}
         <nav className="hidden md:flex items-center gap-6 text-sm text-content-secondary font-medium">
-          <a href="#features" className="hover:text-content-main transition-colors">Features</a>
-          <a href="#architecture" className="hover:text-content-main transition-colors">Architecture</a>
-          <a href="#execution" className="hover:text-content-main transition-colors">Code Execution</a>
-          <a href="#ai-assistant" className="hover:text-content-main transition-colors">AI Engine</a>
-          <a href="#tech-stack" className="hover:text-content-main transition-colors">Tech Stack</a>
+          {isAuthenticated && (
+            <Link to="/dashboard" className="text-content-main flex items-center gap-1.5 hover:text-accent-primary transition-colors">
+              <LayoutDashboard className="w-4 h-4 text-accent-primary" />
+              Dashboard
+            </Link>
+          )}
+          <a href="/#features" className="hover:text-content-main transition-colors">Features</a>
+          <a href="/#architecture" className="hover:text-content-main transition-colors">Architecture</a>
+          <a href="/#execution" className="hover:text-content-main transition-colors">Code Execution</a>
+          <a href="/#ai-assistant" className="hover:text-content-main transition-colors">AI Engine</a>
         </nav>
 
         {/* Actions */}
@@ -78,30 +88,51 @@ export const Navbar: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={() => window.open('/docs', '_blank')}
-            className="hidden sm:inline-flex text-content-secondary hover:text-content-main"
+            className="hidden sm:inline-flex text-content-secondary hover:text-content-main text-xs"
           >
             API Docs
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => alert("Authentication & Workspace Dashboard will be activated in Phase 2!")}
-          >
-            Sign In
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            rightIcon={<ChevronRight className="w-4 h-4" />}
-            onClick={() => {
-              const ideElement = document.getElementById('ide-preview');
-              if (ideElement) {
-                ideElement.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-          >
-            Try Editor
-          </Button>
+
+          {isAuthenticated ? (
+            <div className="flex items-center gap-3">
+              <Link 
+                to="/dashboard"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background-panel border border-border-subtle text-xs hover:border-border-light transition-colors"
+              >
+                <div className="w-5 h-5 rounded-full bg-accent-primary/20 text-accent-primary flex items-center justify-center font-bold text-[10px]">
+                  {user?.username?.charAt(0).toUpperCase()}
+                </div>
+                <span className="font-medium text-content-main font-mono">{user?.username}</span>
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={logout}
+                title="Log Out"
+                className="text-content-muted hover:text-rose-400 p-1.5"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate('/login')}
+              >
+                Sign In
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                rightIcon={<ChevronRight className="w-4 h-4" />}
+                onClick={() => navigate('/register')}
+              >
+                Get Started
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </header>

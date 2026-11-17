@@ -1,10 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime
-from sqlalchemy.orm import declarative_mixin
 from app.core.database import Base
 
-@declarative_mixin
 class TimestampMixin:
     created_at = Column(
         DateTime(timezone=True),
@@ -18,7 +16,6 @@ class TimestampMixin:
         nullable=False
     )
 
-@declarative_mixin
 class UUIDPrimaryKeyMixin:
     id = Column(
         String(36),
