@@ -93,3 +93,17 @@ export interface CollabUser {
   color: string;
   id?: string;
 }
+
+export interface ExecutionResponse {
+  id: string;
+  workspace_id: string;
+  language: string;
+  entrypoint: string;
+  status: 'success' | 'error' | 'compilation_error' | 'timeout' | 'running';
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  execution_time_ms: number;
+  memory_used_mb: number;
+  created_at: string;
+}

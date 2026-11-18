@@ -4,7 +4,7 @@ import { Loader2, AlertCircle, Copy, Check } from 'lucide-react';
 import { useEditorStore } from '../stores/editorStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { apiService } from '../services/api';
-import { Workspace, FileItem, WorkspaceMember } from '../types';
+import { Workspace, FileItem, WorkspaceMember, ExecutionResponse } from '../types';
 
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { FileExplorer } from '../components/editor/FileExplorer';
@@ -29,8 +29,9 @@ export const WorkspacePage: React.FC = () => {
   const [activeInviteUrl, setActiveInviteUrl] = useState<string | null>(null);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
-  // Execution logs
-  const [logs, setLogs] = useState<Array<{ id: string; type: 'info' | 'success' | 'error'; text: string; timestamp: string }>>([]);
+  // Execution logs & history
+  const [logs, setLogs] = useState<Array<{ id: string; type: 'info' | 'success' | 'error' | 'header'; text: string; timestamp: string }>>([]);
+  const [executionHistory, setExecutionHistory] = useState<ExecutionResponse[]>([]);
 
   const {
     openTabs,
@@ -51,17 +52,19 @@ export const WorkspacePage: React.FC = () => {
   // Debounced auto-save timer ref
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Load Workspace & Files on mount
+  // 1. Load Workspace, Files & History on mount
   const loadWorkspaceData = useCallback(async () => {
     if (!workspaceId) return;
     setIsLoadingWorkspace(true);
     try {
-      const [wsData, membersData] = await Promise.all([
+      const [wsData, membersData, historyData] = await Promise.all([
         apiService.getWorkspace(workspaceId),
         apiService.getWorkspaceMembers(workspaceId),
+        apiService.getExecutionHistory(workspaceId).catch(() => []),
       ]);
       setWorkspace(wsData);
       setMembers(membersData);
+      setExecutionHistory(historyData);
       await fetchFiles(workspaceId);
 
       // Auto-open primary starter file if no tabs open
@@ -101,7 +104,6 @@ export const WorkspacePage: React.FC = () => {
     try {
       const updated = await apiService.updateFile(activeFileId, { content: contentToSave });
       markFileSaved(activeFileId, updated.content);
-      // Add feedback log
       setLogs((prev) => [
         {
           id: Math.random().toString(),
@@ -136,14 +138,14 @@ export const WorkspacePage: React.FC = () => {
     };
   }, [fileContents, activeFileId, dirtyFiles, saveActiveFile]);
 
-  // 4. Code Execution Handler (Simulated Sandbox Runner for Phase 3, connected to Docker in Phase 5)
+  // 4. Code Execution Handler
   const handleRunCode = async () => {
-    if (!activeFile) {
+    if (!activeFile || !workspace) {
       alert('Please open a file to execute.');
       return;
     }
 
-    // Auto-save before running
+    // Auto-save active file if dirty before executing
     if (dirtyFiles[activeFile.id]) {
       await saveActiveFile();
     }
@@ -154,24 +156,80 @@ export const WorkspacePage: React.FC = () => {
     setLogs((prev) => [
       {
         id: Math.random().toString(),
-        type: 'info',
-        text: `[Run #${runId}] Submitting ${activeFile.name} (${activeFile.language}) to isolated sandbox runner...`,
+        type: 'header',
+        text: `🚀 [Sandbox Execution #${runId}] Submitting ${activeFile.name} (${activeFile.language}) to isolated container runner...`,
         timestamp,
       },
       ...prev,
     ]);
 
-    setTimeout(() => {
+    try {
+      // Collect workspace files
+      const filesPayload = openTabs.map((t) => ({
+        name: t.name,
+        content: fileContents[t.id] !== undefined ? fileContents[t.id] : t.content,
+      }));
+
+      // Ensure active file is included
+      if (!filesPayload.some((f) => f.name === activeFile.name)) {
+        filesPayload.push({
+          name: activeFile.name,
+          content: fileContents[activeFile.id] !== undefined ? fileContents[activeFile.id] : activeFile.content,
+        });
+      }
+
+      const execResult = await apiService.runCode({
+        workspace_id: workspace.id,
+        language: activeFile.language,
+        entrypoint: activeFile.name,
+        files: filesPayload,
+        timeout_sec: 10,
+      });
+
+      // Update history
+      setExecutionHistory((prev) => [execResult, ...prev]);
+
+      // Output formatting
+      const newLogEntries: Array<{ id: string; type: 'info' | 'success' | 'error' | 'header'; text: string; timestamp: string }> = [];
+
+      if (execResult.stdout) {
+        newLogEntries.push({
+          id: Math.random().toString(),
+          type: 'info',
+          text: execResult.stdout,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      }
+
+      if (execResult.stderr) {
+        newLogEntries.push({
+          id: Math.random().toString(),
+          type: 'error',
+          text: execResult.stderr,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      }
+
+      const isSuccess = execResult.status === 'success' && execResult.exit_code === 0;
+      newLogEntries.push({
+        id: Math.random().toString(),
+        type: isSuccess ? 'success' : 'error',
+        text: `✨ [Completed in ${execResult.execution_time_ms}ms] Exit code: ${execResult.exit_code} (Status: ${execResult.status.toUpperCase()}) | Memory: ${execResult.memory_used_mb}MB`,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+
+      setLogs((prev) => [...newLogEntries, ...prev]);
+    } catch (err: any) {
       setLogs((prev) => [
         {
           id: Math.random().toString(),
-          type: 'success',
-          text: `[Run #${runId}] Output: Execution verified! Container exited with code 0 (Time: 86ms, RAM: 12.4 MB). Ready for Docker worker integration in Phase 5.`,
+          type: 'error',
+          text: `[Execution Failed] ${err.response?.data?.detail || err.message}`,
           timestamp: new Date().toLocaleTimeString(),
         },
         ...prev,
       ]);
-    }, 400);
+    }
   };
 
   const handleOpenInviteModal = async () => {
@@ -265,6 +323,7 @@ export const WorkspacePage: React.FC = () => {
           {/* Bottom Panel: Output / Terminal */}
           <BottomPanel
             logs={logs}
+            executionHistory={executionHistory}
             onClearLogs={() => setLogs([])}
           />
         </div>

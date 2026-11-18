@@ -4,6 +4,7 @@ from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember, Invitation
 from app.models.file import File
 from app.models.collaboration import CollaborationDocument
+from app.models.execution import Execution
 
 __all__ = [
     "Base",
@@ -15,4 +16,5 @@ __all__ = [
     "Invitation",
     "File",
     "CollaborationDocument",
+    "Execution",
 ]

@@ -7,7 +7,8 @@ import {
   WorkspaceMember, 
   FileItem, 
   InviteResponse,
-  CreateWorkspaceInput
+  CreateWorkspaceInput,
+  ExecutionResponse
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL 
@@ -19,7 +20,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 30000,
 });
 
 // Automatic JWT Authorization header injection
@@ -31,7 +32,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response error handler (e.g. token expiration)
+// Response error handler
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -132,5 +133,23 @@ export const apiService = {
 
   deleteFile: async (fileId: string): Promise<void> => {
     await apiClient.delete(`/files/${fileId}`);
+  },
+
+  // Code Execution Engine
+  runCode: async (payload: {
+    workspace_id: string;
+    language: string;
+    entrypoint: string;
+    files?: Array<{ name: string; content: string }>;
+    stdin?: string;
+    timeout_sec?: number;
+  }): Promise<ExecutionResponse> => {
+    const response = await apiClient.post<ExecutionResponse>('/executions', payload);
+    return response.data;
+  },
+
+  getExecutionHistory: async (workspaceId: string): Promise<ExecutionResponse[]> => {
+    const response = await apiClient.get<ExecutionResponse[]>(`/executions/workspaces/${workspaceId}/history`);
+    return response.data;
   },
 };
