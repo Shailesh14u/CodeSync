@@ -329,7 +329,7 @@ export const WorkspacePage: React.FC = () => {
         </div>
 
         {/* Right Panel: AI / Chat / Presence */}
-        <RightSidebar members={members} />
+        <RightSidebar members={members} workspaceId={workspaceId} />
       </div>
 
       {/* Share / Invite Modal */}

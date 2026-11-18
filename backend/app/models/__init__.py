@@ -5,6 +5,7 @@ from app.models.workspace import Workspace, WorkspaceMember, Invitation
 from app.models.file import File
 from app.models.collaboration import CollaborationDocument
 from app.models.execution import Execution
+from app.models.ai import AIRequestLog
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "File",
     "CollaborationDocument",
     "Execution",
+    "AIRequestLog",
 ]

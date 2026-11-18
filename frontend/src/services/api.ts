@@ -152,4 +152,39 @@ export const apiService = {
     const response = await apiClient.get<ExecutionResponse[]>(`/executions/workspaces/${workspaceId}/history`);
     return response.data;
   },
+
+  // AI Development Assistant
+  queryAI: async (payload: {
+    workspace_id: string;
+    action: 'explain' | 'debug' | 'generate' | 'optimize' | 'review' | 'complexity' | 'tests';
+    code: string;
+    language?: string;
+    instruction?: string;
+    error_trace?: string;
+  }): Promise<AIResponse> => {
+    const response = await apiClient.post<AIResponse>('/ai/query', payload);
+    return response.data;
+  },
+
+  sendAIFeedback: async (requestId: string, accepted: boolean): Promise<{ status: string; accepted: boolean }> => {
+    const response = await apiClient.post<{ status: string; accepted: boolean }>(`/ai/${requestId}/feedback`, { accepted });
+    return response.data;
+  },
 };
+
+export interface AIComplexity {
+  time_complexity: string;
+  space_complexity: string;
+  explanation?: string;
+}
+
+export interface AIResponse {
+  request_id: string;
+  action: string;
+  explanation: string;
+  suggested_code: string;
+  reasoning: string;
+  risks: string;
+  complexity?: AIComplexity;
+  provider: string;
+}
