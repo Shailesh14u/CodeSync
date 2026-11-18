@@ -87,3 +87,9 @@ export interface CreateWorkspaceInput {
   default_language?: string;
   is_public?: boolean;
 }
+
+export interface CollabUser {
+  name: string;
+  color: string;
+  id?: string;
+}

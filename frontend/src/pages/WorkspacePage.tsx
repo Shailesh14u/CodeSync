@@ -255,6 +255,7 @@ export const WorkspacePage: React.FC = () => {
           {/* Monaco Editor Canvas */}
           <div className="flex-1 overflow-hidden relative">
             <MonacoEditorPane
+              workspaceId={workspace.id}
               activeFile={activeFile}
               onSave={saveActiveFile}
               onRun={handleRunCode}

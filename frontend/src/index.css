@@ -33,3 +33,46 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
 }
+
+/* Yjs y-monaco Live Remote Cursor & Selection Styles */
+.yRemoteSelection {
+  background-color: rgba(99, 102, 241, 0.25);
+  border-radius: 2px;
+}
+
+.yRemoteSelectionHead {
+  position: absolute;
+  border-left: 2px solid #6366F1;
+  border-top: 2px solid #6366F1;
+  border-bottom: 2px solid #6366F1;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.yRemoteSelectionHead::after {
+  position: absolute;
+  content: ' ';
+  border: 3px solid #6366F1;
+  border-radius: 2px;
+  left: -4px;
+  top: -5px;
+}
+
+/* Floating collaborator name badge over cursor */
+.yRemoteSelectionHead .yRemoteLabel {
+  position: absolute;
+  top: -1.4em;
+  left: -2px;
+  font-size: 10px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  line-height: normal;
+  user-select: none;
+  color: #ffffff;
+  padding: 1px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}

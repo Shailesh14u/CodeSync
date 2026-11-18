@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { FileItem } from '../types';
+import { FileItem, CollabUser } from '../types';
 
 interface EditorState {
   openTabs: FileItem[];
@@ -7,6 +7,10 @@ interface EditorState {
   fileContents: Record<string, string>; // fileId -> current content in editor
   dirtyFiles: Record<string, boolean>;  // fileId -> boolean has unsaved edits
   saveStatus: 'saved' | 'saving' | 'unsaved';
+
+  // Real-time Collaboration & Presence
+  collabStatus: 'connecting' | 'connected' | 'disconnected';
+  collabUsers: CollabUser[];
 
   // Panels layout state
   isLeftSidebarOpen: boolean;
@@ -21,6 +25,8 @@ interface EditorState {
   updateFileContent: (fileId: string, content: string) => void;
   markFileSaved: (fileId: string, savedContent: string) => void;
   setSaveStatus: (status: 'saved' | 'saving' | 'unsaved') => void;
+  setCollabStatus: (status: 'connecting' | 'connected' | 'disconnected') => void;
+  setCollabUsers: (users: CollabUser[]) => void;
   setLanguage: (fileId: string, language: string) => void;
   toggleLeftSidebar: () => void;
   toggleRightSidebar: () => void;
@@ -36,6 +42,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   fileContents: {},
   dirtyFiles: {},
   saveStatus: 'saved',
+
+  collabStatus: 'disconnected',
+  collabUsers: [],
 
   isLeftSidebarOpen: true,
   isRightSidebarOpen: true,
@@ -68,7 +77,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     let nextActiveId = activeFileId;
     if (activeFileId === fileId) {
       if (updatedTabs.length > 0) {
-        // Pick adjacent tab
         const nextIndex = Math.min(tabIndex, updatedTabs.length - 1);
         nextActiveId = updatedTabs[nextIndex].id;
       } else {
@@ -110,6 +118,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setSaveStatus: (status) => set({ saveStatus: status }),
+  setCollabStatus: (collabStatus) => set({ collabStatus }),
+  setCollabUsers: (collabUsers) => set({ collabUsers }),
 
   setLanguage: (fileId, language) => {
     set((state) => ({
@@ -132,5 +142,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       fileContents: {},
       dirtyFiles: {},
       saveStatus: 'saved',
+      collabStatus: 'disconnected',
+      collabUsers: [],
     }),
 }));
