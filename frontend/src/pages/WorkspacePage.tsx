@@ -12,6 +12,8 @@ import { EditorTabs } from '../components/editor/EditorTabs';
 import { MonacoEditorPane } from '../components/editor/MonacoEditorPane';
 import { BottomPanel } from '../components/editor/BottomPanel';
 import { RightSidebar } from '../components/editor/RightSidebar';
+import { VersionHistoryModal } from '../components/editor/VersionHistoryModal';
+import { InterviewModeModal } from '../components/editor/InterviewModeModal';
 import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 
@@ -26,6 +28,8 @@ export const WorkspacePage: React.FC = () => {
 
   // Modals
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
   const [activeInviteUrl, setActiveInviteUrl] = useState<string | null>(null);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
@@ -290,6 +294,8 @@ export const WorkspacePage: React.FC = () => {
         onManualSave={saveActiveFile}
         onOpenInviteModal={handleOpenInviteModal}
         onRunCode={handleRunCode}
+        onOpenVersionHistory={() => setIsHistoryModalOpen(true)}
+        onOpenInterviewMode={() => setIsInterviewModalOpen(true)}
       />
 
       {/* 2. Main IDE Workspace Grid */}
@@ -372,6 +378,21 @@ export const WorkspacePage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Version History Modal */}
+      <VersionHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        workspaceId={workspace.id}
+        onRestoreSuccess={() => fetchFiles(workspace.id)}
+      />
+
+      {/* Coding Challenge / Technical Interview Mode Modal */}
+      <InterviewModeModal
+        isOpen={isInterviewModalOpen}
+        onClose={() => setIsInterviewModalOpen(false)}
+        workspaceId={workspace.id}
+      />
     </div>
   );
 };

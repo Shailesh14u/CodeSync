@@ -11,7 +11,9 @@ import {
   Terminal, 
   Sidebar as SidebarIcon,
   MessageSquare,
-  Users
+  Users,
+  History,
+  Trophy
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -24,6 +26,8 @@ export interface EditorToolbarProps {
   onManualSave: () => void;
   onOpenInviteModal: () => void;
   onRunCode: () => void;
+  onOpenVersionHistory?: () => void;
+  onOpenInterviewMode?: () => void;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -32,6 +36,8 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onManualSave,
   onOpenInviteModal,
   onRunCode,
+  onOpenVersionHistory,
+  onOpenInterviewMode,
 }) => {
   const navigate = useNavigate();
   const { 
@@ -147,6 +153,34 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
       {/* Right section: Action Buttons & Panel Toggles */}
       <div className="flex items-center gap-2">
+        {/* Version History Button */}
+        {onOpenVersionHistory && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs px-2 text-content-secondary hover:text-content-main"
+            onClick={onOpenVersionHistory}
+            leftIcon={<History className="w-3.5 h-3.5 text-indigo-400" />}
+            title="Snapshots & Version History"
+          >
+            <span className="hidden md:inline">History</span>
+          </Button>
+        )}
+
+        {/* Interview Mode Button */}
+        {onOpenInterviewMode && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs px-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+            onClick={onOpenInterviewMode}
+            leftIcon={<Trophy className="w-3.5 h-3.5 text-amber-400" />}
+            title="Collaborative Interview Challenges"
+          >
+            <span className="hidden md:inline">Interview</span>
+          </Button>
+        )}
+
         {/* Share Button */}
         <Button
           variant="secondary"

@@ -170,7 +170,132 @@ export const apiService = {
     const response = await apiClient.post<{ status: string; accepted: boolean }>(`/ai/${requestId}/feedback`, { accepted });
     return response.data;
   },
+
+  // Version History / Snapshots
+  createSnapshot: async (workspaceId: string, payload: { name: string; description?: string }): Promise<SnapshotItem> => {
+    const response = await apiClient.post<SnapshotItem>(`/workspaces/${workspaceId}/snapshots`, payload);
+    return response.data;
+  },
+
+  getSnapshots: async (workspaceId: string): Promise<SnapshotItem[]> => {
+    const response = await apiClient.get<SnapshotItem[]>(`/workspaces/${workspaceId}/snapshots`);
+    return response.data;
+  },
+
+  getSnapshot: async (snapshotId: string): Promise<SnapshotDetail> => {
+    const response = await apiClient.get<SnapshotDetail>(`/snapshots/${snapshotId}`);
+    return response.data;
+  },
+
+  restoreSnapshot: async (snapshotId: string): Promise<{ status: string; message: string; restored_files_count: number }> => {
+    const response = await apiClient.post<{ status: string; message: string; restored_files_count: number }>(`/snapshots/${snapshotId}/restore`);
+    return response.data;
+  },
+
+  // Workspace Chat / Messaging
+  getMessages: async (workspaceId: string): Promise<ChatMessage[]> => {
+    const response = await apiClient.get<ChatMessage[]>(`/workspaces/${workspaceId}/messages`);
+    return response.data;
+  },
+
+  sendMessage: async (workspaceId: string, content: string): Promise<ChatMessage> => {
+    const response = await apiClient.post<ChatMessage>(`/workspaces/${workspaceId}/messages`, { content });
+    return response.data;
+  },
+
+  // Interview Mode
+  getInterview: async (workspaceId: string): Promise<InterviewSession> => {
+    const response = await apiClient.get<InterviewSession>(`/workspaces/${workspaceId}/interview`);
+    return response.data;
+  },
+
+  configureInterview: async (workspaceId: string, payload: Partial<InterviewSession>): Promise<InterviewSession> => {
+    const response = await apiClient.post<InterviewSession>(`/workspaces/${workspaceId}/interview`, payload);
+    return response.data;
+  },
+
+  evaluateInterview: async (workspaceId: string, payload: { code: string; language: string }): Promise<InterviewEvaluateResponse> => {
+    const response = await apiClient.post<InterviewEvaluateResponse>(`/workspaces/${workspaceId}/interview/evaluate`, payload);
+    return response.data;
+  },
+
+  generateInterviewFeedback: async (workspaceId: string, payload: { code: string; language: string }): Promise<{ status: string; feedback: string; score: number }> => {
+    const response = await apiClient.post<{ status: string; feedback: string; score: number }>(`/workspaces/${workspaceId}/interview/feedback`, payload);
+    return response.data;
+  },
 };
+
+export interface SnapshotItem {
+  id: string;
+  workspace_id: string;
+  created_by_id?: string;
+  name: string;
+  description?: string;
+  file_count: number;
+  created_at: string;
+}
+
+export interface SnapshotDetail extends SnapshotItem {
+  files_data: Array<{
+    name: string;
+    path: string;
+    language: string;
+    content: string;
+  }>;
+}
+
+export interface ChatMessage {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  username: string;
+  content: string;
+  created_at: string;
+}
+
+export interface TestCase {
+  id: number;
+  input: string;
+  expected_output: string;
+  hidden: boolean;
+}
+
+export interface TestCaseResult {
+  test_id: number;
+  passed: boolean;
+  input: string;
+  expected: string;
+  actual: string;
+  hidden: boolean;
+  error?: string;
+  execution_time_ms: number;
+}
+
+export interface InterviewEvaluateResponse {
+  score: number;
+  total_tests: number;
+  passed_tests: number;
+  status: string;
+  results: TestCaseResult[];
+  ai_feedback?: string;
+}
+
+export interface InterviewSession {
+  id: string;
+  workspace_id: string;
+  interviewer_id?: string;
+  candidate_id?: string;
+  title: string;
+  description: string;
+  difficulty: string;
+  language: string;
+  time_limit_minutes: number;
+  test_cases: TestCase[];
+  status: string;
+  score?: number;
+  ai_feedback?: string;
+  created_at: string;
+}
 
 export interface AIComplexity {
   time_complexity: string;

@@ -6,6 +6,9 @@ from app.models.file import File
 from app.models.collaboration import CollaborationDocument
 from app.models.execution import Execution
 from app.models.ai import AIRequestLog
+from app.models.snapshot import Snapshot
+from app.models.message import Message
+from app.models.interview import InterviewSession
 
 __all__ = [
     "Base",
@@ -19,4 +22,7 @@ __all__ = [
     "CollaborationDocument",
     "Execution",
     "AIRequestLog",
+    "Snapshot",
+    "Message",
+    "InterviewSession",
 ]

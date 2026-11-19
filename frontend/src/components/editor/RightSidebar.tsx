@@ -22,7 +22,7 @@ import { useEditorStore } from '../../stores/editorStore';
 import { WorkspaceMember } from '../../types';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { apiService, AIResponse } from '../../services/api';
+import { apiService, AIResponse, ChatMessage } from '../../services/api';
 import { DiffViewerModal } from './DiffViewerModal';
 
 export interface RightSidebarProps {
@@ -54,6 +54,60 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [appliedSuccess, setAppliedSuccess] = useState(false);
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isSendingChat, setIsSendingChat] = useState(false);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Poll chat messages when chat tab is active
+  React.useEffect(() => {
+    if (!workspaceId || activeRightTab !== 'chat') return;
+
+    let isMounted = true;
+    const fetchChat = async () => {
+      try {
+        const msgs = await apiService.getMessages(workspaceId);
+        if (isMounted) {
+          setMessages(msgs);
+        }
+      } catch (err) {
+        console.error('Failed to load chat messages:', err);
+      }
+    };
+
+    fetchChat();
+    const interval = setInterval(fetchChat, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [workspaceId, activeRightTab]);
+
+  React.useEffect(() => {
+    if (activeRightTab === 'chat') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, activeRightTab]);
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!chatInput.trim() || isSendingChat || !workspaceId) return;
+
+    const content = chatInput.trim();
+    setChatInput('');
+    setIsSendingChat(true);
+
+    try {
+      const newMsg = await apiService.sendMessage(workspaceId, content);
+      setMessages((prev) => [...prev, newMsg]);
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
 
   if (!isRightSidebarOpen) return null;
 
@@ -360,27 +414,53 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
           {/* Team Chat Tab */}
           {activeRightTab === 'chat' && (
-            <div className="h-full flex flex-col justify-between">
-              <div className="space-y-3">
+            <div className="h-full flex flex-col justify-between min-h-[300px]">
+              <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                 <div className="p-2.5 rounded-lg bg-background-secondary border border-border-subtle text-xs text-content-secondary">
                   <span className="font-semibold text-content-main">Workspace Channel</span>
                   <p className="text-[11px] mt-0.5">Discuss logic and pair-program in real-time.</p>
                 </div>
-                <div className="text-[11px] text-content-muted text-center py-8">
-                  No messages yet. Send a message to your team below.
-                </div>
+
+                {messages.length === 0 ? (
+                  <div className="text-[11px] text-content-muted text-center py-10">
+                    No messages yet. Send a message to your team below.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 pt-1">
+                    {messages.map((m) => (
+                      <div key={m.id} className="text-xs space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-content-muted">
+                          <span className="font-semibold text-accent-primary">{m.username}</span>
+                          <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <div className="bg-background-secondary p-2 rounded-lg border border-border-subtle/70 text-content-main break-words">
+                          {m.content}
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
               </div>
 
-              <div className="pt-2 border-t border-border-subtle flex items-center gap-1.5">
+              <form onSubmit={handleSendMessage} className="pt-2 border-t border-border-subtle flex items-center gap-1.5 shrink-0">
                 <input
                   type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Type a message..."
                   className="flex-1 bg-background-secondary border border-border-subtle rounded-lg px-2.5 py-1.5 text-xs text-content-main outline-none focus:border-accent-primary"
                 />
-                <Button variant="primary" size="sm" className="h-7 px-2">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isSendingChat || !chatInput.trim()}
+                  className="h-7 px-2"
+                >
                   <Send className="w-3 h-3" />
                 </Button>
-              </div>
+              </form>
             </div>
           )}
 
