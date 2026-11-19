@@ -22,11 +22,15 @@ Respond strictly in JSON format with exactly the following keys:
 }"""
 
     async def process(self, job: AIJob) -> AIResult:
-        if not settings.AI_API_KEY:
+        key = (job.api_key or settings.AI_API_KEY or "").strip()
+        if not key or key.startswith("your_"):
             raise ValueError("Gemini API key is not configured in environment (AI_API_KEY).")
 
-        model = settings.AI_MODEL_NAME or "gemini-1.5-pro"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.AI_API_KEY}"
+        model = job.model_name or settings.AI_MODEL_NAME or "gemini-1.5-flash"
+        if model in ("gemini-pro", "gemini"):
+            model = "gemini-1.5-flash"
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 
         user_content = (
             f"Action: {job.action.upper()}\n"
@@ -57,8 +61,15 @@ Respond strictly in JSON format with exactly the following keys:
                 raise RuntimeError(f"Gemini API returned error {res.status_code}: {res.text}")
 
             data = res.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            parsed = json.loads(raw_text)
+            raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            if raw_text.startswith("```json"):
+                raw_text = raw_text[7:]
+            elif raw_text.startswith("```"):
+                raw_text = raw_text[3:]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3]
+
+            parsed = json.loads(raw_text.strip())
 
             return AIResult(
                 explanation=parsed.get("explanation", ""),

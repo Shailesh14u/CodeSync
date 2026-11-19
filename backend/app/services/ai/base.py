@@ -9,6 +9,9 @@ class AIJob:
     language: str
     instruction: Optional[str] = None
     error_trace: Optional[str] = None
+    api_key: Optional[str] = None
+    provider: Optional[str] = None
+    model_name: Optional[str] = None
 
 @dataclass
 class AIResult:

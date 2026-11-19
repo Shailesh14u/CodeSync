@@ -38,7 +38,10 @@ async def _process_ai_request(
         code=query.code,
         language=query.language,
         instruction=query.instruction,
-        error_trace=query.error_trace
+        error_trace=query.error_trace,
+        api_key=query.api_key,
+        provider=query.provider,
+        model_name=query.model_name
     )
     result = await ai_manager.execute(job)
 

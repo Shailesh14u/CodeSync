@@ -19,9 +19,9 @@ class AIServiceManager:
         self.gemini_service = GeminiAIService()
         self.openai_service = OpenAIAIService()
 
-    def get_service(self) -> BaseAIService:
-        provider = (settings.AI_PROVIDER or "mock").lower()
-        key = (settings.AI_API_KEY or "").strip()
+    def get_service(self, job: AIJob = None) -> BaseAIService:
+        provider = ((job and job.provider) or settings.AI_PROVIDER or "mock").lower()
+        key = ((job and job.api_key) or settings.AI_API_KEY or "").strip()
         
         # Check if key is absent or default placeholder
         if not key or key.startswith("your_") or key.startswith("your-") or provider == "mock":
@@ -36,7 +36,7 @@ class AIServiceManager:
             return self.mock_service
 
     async def execute(self, job: AIJob) -> AIResult:
-        service = self.get_service()
+        service = self.get_service(job)
         try:
             return await service.process(job)
         except Exception as e:

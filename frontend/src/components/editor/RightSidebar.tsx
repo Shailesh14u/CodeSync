@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   FileCode2,
   CheckCircle2,
+  Settings,
 } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
 import { WorkspaceMember } from '../../types';
@@ -54,6 +55,25 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   const [aiError, setAiError] = useState<string | null>(null);
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false);
   const [appliedSuccess, setAppliedSuccess] = useState(false);
+
+  // AI Provider & Key configuration
+  const [aiProvider, setAiProvider] = useState<'mock' | 'gemini' | 'openai'>(() => {
+    try {
+      return (localStorage.getItem('codesync_ai_provider') as any) || 'mock';
+    } catch {
+      return 'mock';
+    }
+  });
+
+  const [aiApiKey, setAiApiKey] = useState<string>(() => {
+    try {
+      return localStorage.getItem('codesync_ai_key') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const [showAiSettings, setShowAiSettings] = useState(false);
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -137,6 +157,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         code: activeCode || '# No code in current file',
         language: activeLanguage,
         instruction: customPrompt || instruction,
+        provider: aiProvider !== 'mock' ? aiProvider : undefined,
+        api_key: aiApiKey.trim() || undefined,
       });
 
       setAiResponse(res);
@@ -218,10 +240,75 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                 <div className="flex items-center gap-2 text-xs font-semibold text-content-main">
                   <Bot className="w-4 h-4 text-accent-secondary" />
                   <span>CodeSync AI Pair</span>
-                  <Badge variant="accent" size="sm" className="ml-auto text-[10px]">
-                    Interactive
+                  <button
+                    onClick={() => setShowAiSettings(!showAiSettings)}
+                    className={`ml-auto p-1 rounded transition-colors text-content-muted hover:text-content-main ${
+                      showAiSettings ? 'bg-background-hover text-accent-secondary' : ''
+                    }`}
+                    title="Configure AI Provider & API Key"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </button>
+                  <Badge variant="accent" size="sm" className="text-[10px] capitalize">
+                    {aiProvider === 'gemini' ? 'Gemini 1.5' : aiProvider === 'openai' ? 'OpenAI GPT' : 'Heuristic'}
                   </Badge>
                 </div>
+
+                {/* AI Configuration Dropdown Box */}
+                {showAiSettings && (
+                  <div className="p-2.5 rounded-lg bg-background-panel border border-border-subtle space-y-2.5 my-2">
+                    <div className="flex items-center justify-between text-xs font-semibold text-content-main">
+                      <span>AI Model Engine</span>
+                      <span className="text-[10px] text-accent-secondary">Settings</span>
+                    </div>
+
+                    <select
+                      value={aiProvider}
+                      onChange={(e) => {
+                        const val = e.target.value as 'mock' | 'gemini' | 'openai';
+                        setAiProvider(val);
+                        try { localStorage.setItem('codesync_ai_provider', val); } catch {}
+                      }}
+                      className="w-full bg-background-secondary border border-border-subtle rounded-md px-2 py-1.5 text-xs text-content-main outline-none focus:border-accent-secondary"
+                    >
+                      <option value="mock">Offline Smart Engine (Free / No Key Required)</option>
+                      <option value="gemini">Google Gemini 1.5 (Free AI Studio Key)</option>
+                      <option value="openai">OpenAI (ChatGPT / GPT-4o)</option>
+                    </select>
+
+                    {aiProvider !== 'mock' && (
+                      <div className="space-y-1.5 pt-1 border-t border-border-subtle">
+                        <label className="text-[10px] text-content-muted flex items-center justify-between">
+                          <span>API Key ({aiProvider === 'gemini' ? 'Google Gemini' : 'OpenAI'}):</span>
+                          {aiProvider === 'gemini' && (
+                            <a
+                              href="https://aistudio.google.com/app/apikey"
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-accent-secondary hover:underline"
+                            >
+                              Get Free Key ↗
+                            </a>
+                          )}
+                        </label>
+                        <input
+                          type="password"
+                          value={aiApiKey}
+                          onChange={(e) => {
+                            setAiApiKey(e.target.value);
+                            try { localStorage.setItem('codesync_ai_key', e.target.value); } catch {}
+                          }}
+                          placeholder={aiProvider === 'gemini' ? 'Paste AIzaSy... key' : 'Paste sk-... key'}
+                          className="w-full bg-background-secondary border border-border-subtle rounded-md px-2 py-1.5 text-xs text-content-main outline-none font-mono focus:border-accent-secondary"
+                        />
+                        <p className="text-[10px] text-content-muted leading-tight">
+                          Key is stored safely in your local browser and sent directly to the AI service.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-[11px] text-content-secondary leading-relaxed">
                   Real-time code explanation, bug detection, performance optimization, and reviewable diffs.
                 </p>

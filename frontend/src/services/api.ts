@@ -161,6 +161,9 @@ export const apiService = {
     language?: string;
     instruction?: string;
     error_trace?: string;
+    api_key?: string;
+    provider?: string;
+    model_name?: string;
   }): Promise<AIResponse> => {
     const response = await apiClient.post<AIResponse>('/ai/query', payload);
     return response.data;
