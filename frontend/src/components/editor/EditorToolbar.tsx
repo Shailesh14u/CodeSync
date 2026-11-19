@@ -13,7 +13,9 @@ import {
   MessageSquare,
   Users,
   History,
-  Trophy
+  Trophy,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -51,7 +53,9 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     isRightSidebarOpen, 
     toggleRightSidebar,
     activeRightTab,
-    setActiveRightTab
+    setActiveRightTab,
+    showCaretBadges,
+    toggleCaretBadges
   } = useEditorStore();
 
   const supportedLanguages = [
@@ -209,6 +213,19 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         </Button>
 
         <div className="h-4 w-px bg-border-subtle mx-1" />
+
+        {/* Toggle Caret Name Badges */}
+        <button
+          onClick={toggleCaretBadges}
+          className={`p-1.5 rounded transition-colors ${
+            showCaretBadges
+              ? 'text-accent-secondary bg-background-hover'
+              : 'text-content-muted hover:text-content-main'
+          }`}
+          title={showCaretBadges ? 'Collaborator Caret Name Badges: ON (Click to Hide)' : 'Collaborator Caret Name Badges: OFF (Click to Show)'}
+        >
+          {showCaretBadges ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
+        </button>
 
         {/* Bottom panel toggle */}
         <button

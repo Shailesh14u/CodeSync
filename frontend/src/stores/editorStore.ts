@@ -19,6 +19,10 @@ interface EditorState {
   activeRightTab: 'ai' | 'chat' | 'collaborators';
   activeBottomTab: 'terminal' | 'output' | 'problems';
 
+  // Caret / Cursor Name Tag Toggle
+  showCaretBadges: boolean;
+  toggleCaretBadges: () => void;
+
   // Actions
   openFile: (file: FileItem) => void;
   closeTab: (fileId: string) => void;
@@ -50,6 +54,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   collabStatus: 'disconnected',
   collabUsers: [],
+
+  showCaretBadges: (() => {
+    try {
+      const saved = localStorage.getItem('codesync_show_caret_badges');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  })(),
+
+  toggleCaretBadges: () => {
+    set((state) => {
+      const next = !state.showCaretBadges;
+      try {
+        localStorage.setItem('codesync_show_caret_badges', String(next));
+      } catch {}
+      return { showCaretBadges: next };
+    });
+  },
 
   isLeftSidebarOpen: true,
   isRightSidebarOpen: true,

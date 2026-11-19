@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
-import { FileCode, Users, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { FileCode, Users, Wifi, WifiOff, RefreshCw, UserCheck, UserX } from 'lucide-react';
 import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { MonacoBinding } from 'y-monaco';
@@ -38,7 +38,7 @@ function getDeterministicColor(str: string): string {
 }
 
 // Injects dynamic CSS rules for each collaborator so their name badge floats on their caret handle
-function injectCursorStyles(awareness: any) {
+function injectCursorStyles(awareness: any, showBadges = true) {
   if (typeof document === 'undefined' || !awareness) return;
   let styleEl = document.getElementById('codesync-cursor-styles') as HTMLStyleElement;
   if (!styleEl) {
@@ -48,6 +48,14 @@ function injectCursorStyles(awareness: any) {
   }
 
   let css = '';
+  if (!showBadges) {
+    css += `
+      .yRemoteSelectionHead::before {
+        display: none !important;
+      }
+    `;
+  }
+
   awareness.getStates().forEach((state: any, clientID: number) => {
     if (state.user) {
       const name = (state.user.name || 'Collaborator').replace(/['"\\]/g, '');
@@ -66,6 +74,7 @@ function injectCursorStyles(awareness: any) {
         }
         .yRemoteSelectionHead-${clientID}::before {
           content: '${name}' !important;
+          display: ${showBadges ? 'block' : 'none'} !important;
           background-color: ${color} !important;
           color: #ffffff !important;
           position: absolute;
@@ -141,7 +150,9 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     updateFileContent,
     fileContents,
     openTabs,
-    setApplyContentHandler
+    setApplyContentHandler,
+    showCaretBadges,
+    toggleCaretBadges,
   } = useEditorStore();
 
   // Register active editor update handler for AI Diff apply & programmatic edits
@@ -274,12 +285,12 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
           .map((s: any) => s.user)
           .filter((u: any) => !!u && !!u.name);
         setCollabUsers(activePeers);
-        injectCursorStyles(provider.awareness);
+        injectCursorStyles(provider.awareness, showCaretBadges);
       };
 
       if (provider.awareness) {
         provider.awareness.on('change', onAwarenessChange);
-        injectCursorStyles(provider.awareness);
+        injectCursorStyles(provider.awareness, showCaretBadges);
       }
 
       // Keep editor store content updated as Yjs changes occur
@@ -320,7 +331,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
           .map((s: any) => s.user)
           .filter((u: any) => !!u && !!u.name);
         setCollabUsers(activePeers);
-        injectCursorStyles(session.provider.awareness);
+        injectCursorStyles(session.provider.awareness, showCaretBadges);
       }
     }
 
@@ -350,6 +361,15 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
       }
     };
   }, [activeFile?.id, editorInstance, workspaceId, token, user, setCollabStatus, setCollabUsers, updateFileContent]);
+
+  // Re-inject cursor styles dynamically whenever showCaretBadges toggle state changes
+  useEffect(() => {
+    if (!activeFile) return;
+    const session = sessionsRef.current.get(activeFile.id);
+    if (session?.provider?.awareness) {
+      injectCursorStyles(session.provider.awareness, showCaretBadges);
+    }
+  }, [showCaretBadges, activeFile?.id]);
 
   // Clean up sessions for closed tabs
   useEffect(() => {
@@ -488,6 +508,24 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
             </>
           )}
         </div>
+
+        {/* Toggle Live Caret Name Badges */}
+        <button
+          onClick={toggleCaretBadges}
+          title={showCaretBadges ? 'Caret Name Badges: ON (Click to Hide)' : 'Caret Name Badges: OFF (Click to Show)'}
+          className={`flex items-center gap-1.5 border px-2.5 py-1 rounded-full text-[10px] font-mono shadow-panel backdrop-blur-sm pointer-events-auto transition-all cursor-pointer ${
+            showCaretBadges
+              ? 'bg-background-panel/90 border-accent-secondary/50 text-accent-secondary hover:bg-background-hover hover:border-accent-secondary'
+              : 'bg-background-panel/90 border-border-subtle text-content-muted hover:text-content-secondary hover:bg-background-hover'
+          }`}
+        >
+          {showCaretBadges ? (
+            <UserCheck className="w-3 h-3 text-accent-secondary" />
+          ) : (
+            <UserX className="w-3 h-3 text-content-muted" />
+          )}
+          <span>Badges: {showCaretBadges ? 'ON' : 'OFF'}</span>
+        </button>
       </div>
 
       <Editor
