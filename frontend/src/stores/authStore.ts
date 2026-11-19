@@ -15,17 +15,44 @@ interface AuthState {
   register: (email: string, username: string, password: string, fullName?: string) => Promise<boolean>;
   logout: () => void;
   clearError: () => void;
+  setAuth: (user: User, token: string) => void;
 }
+
+// Safe localStorage access for isomorphic / test environments
+const safeStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        return window.localStorage.getItem(key);
+      }
+    } catch {}
+    return null;
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(key, value);
+      }
+    } catch {}
+  },
+  removeItem: (key: string): void => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(key);
+      }
+    } catch {}
+  },
+};
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
-  token: localStorage.getItem('codesync_auth_token'),
-  isAuthenticated: !!localStorage.getItem('codesync_auth_token'),
+  token: safeStorage.getItem('codesync_auth_token'),
+  isAuthenticated: !!safeStorage.getItem('codesync_auth_token'),
   isLoading: true,
   error: null,
 
   initAuth: async () => {
-    const token = localStorage.getItem('codesync_auth_token');
+    const token = safeStorage.getItem('codesync_auth_token');
     if (!token) {
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return;
@@ -36,8 +63,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, token, isAuthenticated: true, isLoading: false, error: null });
     } catch (err: any) {
       console.warn('Failed to restore user session:', err);
-      localStorage.removeItem('codesync_auth_token');
-      localStorage.removeItem('codesync_auth_user');
+      safeStorage.removeItem('codesync_auth_token');
+      safeStorage.removeItem('codesync_auth_user');
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
     }
   },
@@ -50,8 +77,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         password: password,
       });
 
-      localStorage.setItem('codesync_auth_token', authData.access_token);
-      localStorage.setItem('codesync_auth_user', JSON.stringify(authData.user));
+      safeStorage.setItem('codesync_auth_token', authData.access_token);
+      safeStorage.setItem('codesync_auth_user', JSON.stringify(authData.user));
       set({
         user: authData.user,
         token: authData.access_token,
@@ -77,8 +104,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         full_name: fullName,
       });
 
-      localStorage.setItem('codesync_auth_token', authData.access_token);
-      localStorage.setItem('codesync_auth_user', JSON.stringify(authData.user));
+      safeStorage.setItem('codesync_auth_token', authData.access_token);
+      safeStorage.setItem('codesync_auth_user', JSON.stringify(authData.user));
       set({
         user: authData.user,
         token: authData.access_token,
@@ -95,11 +122,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('codesync_auth_token');
-    localStorage.removeItem('codesync_auth_user');
+    safeStorage.removeItem('codesync_auth_token');
+    safeStorage.removeItem('codesync_auth_user');
     set({ user: null, token: null, isAuthenticated: false, error: null });
-    window.location.href = '/login';
+    if (typeof window !== 'undefined' && window.location) {
+      window.location.href = '/login';
+    }
   },
 
   clearError: () => set({ error: null }),
+
+  setAuth: (user, token) => {
+    safeStorage.setItem('codesync_auth_token', token);
+    safeStorage.setItem('codesync_auth_user', JSON.stringify(user));
+    set({ user, token, isAuthenticated: true, error: null, isLoading: false });
+  },
 }));
