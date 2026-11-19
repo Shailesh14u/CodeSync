@@ -37,6 +37,70 @@ function getDeterministicColor(str: string): string {
   return PALETTE[index];
 }
 
+// Injects dynamic CSS rules for each collaborator so their name badge floats on their caret handle
+function injectCursorStyles(awareness: any) {
+  if (typeof document === 'undefined' || !awareness) return;
+  let styleEl = document.getElementById('codesync-cursor-styles') as HTMLStyleElement;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = 'codesync-cursor-styles';
+    document.head.appendChild(styleEl);
+  }
+
+  let css = '';
+  awareness.getStates().forEach((state: any, clientID: number) => {
+    if (state.user) {
+      const name = (state.user.name || 'Collaborator').replace(/['"\\]/g, '');
+      const color = state.user.color || '#6366F1';
+      css += `
+        .yRemoteSelection-${clientID} {
+          background-color: ${color}33 !important;
+        }
+        .yRemoteSelectionHead-${clientID} {
+          position: absolute;
+          border-left: 2px solid ${color} !important;
+          height: 100%;
+          box-sizing: border-box;
+          pointer-events: none;
+          z-index: 50;
+        }
+        .yRemoteSelectionHead-${clientID}::before {
+          content: '${name}' !important;
+          background-color: ${color} !important;
+          color: #ffffff !important;
+          position: absolute;
+          top: -1.4em;
+          left: -2px;
+          font-size: 10px;
+          font-family: 'JetBrains Mono', 'Fira Code', 'Inter', monospace;
+          font-weight: 600;
+          line-height: normal;
+          padding: 1px 5px;
+          border-radius: 3px 3px 3px 0;
+          white-space: nowrap;
+          pointer-events: none;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+          z-index: 100;
+          letter-spacing: 0.02em;
+        }
+        .yRemoteSelectionHead-${clientID}::after {
+          content: '' !important;
+          position: absolute;
+          top: -3px;
+          left: -3px;
+          width: 5px;
+          height: 5px;
+          background-color: ${color} !important;
+          border-radius: 50%;
+          box-shadow: 0 0 4px ${color};
+        }
+      `;
+    }
+  });
+
+  styleEl.textContent = css;
+}
+
 interface CollabSession {
   ydoc: Y.Doc;
   provider: HocuspocusProvider;
@@ -210,10 +274,12 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
           .map((s: any) => s.user)
           .filter((u: any) => !!u && !!u.name);
         setCollabUsers(activePeers);
+        injectCursorStyles(provider.awareness);
       };
 
       if (provider.awareness) {
         provider.awareness.on('change', onAwarenessChange);
+        injectCursorStyles(provider.awareness);
       }
 
       // Keep editor store content updated as Yjs changes occur
@@ -254,6 +320,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
           .map((s: any) => s.user)
           .filter((u: any) => !!u && !!u.name);
         setCollabUsers(activePeers);
+        injectCursorStyles(session.provider.awareness);
       }
     }
 
@@ -312,6 +379,10 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
       sessionsRef.current.clear();
       setCollabStatus('disconnected');
       setCollabUsers([]);
+      if (typeof document !== 'undefined') {
+        const styleEl = document.getElementById('codesync-cursor-styles');
+        if (styleEl) styleEl.textContent = '';
+      }
     };
   }, []);
 
