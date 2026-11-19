@@ -3,16 +3,33 @@ import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import text
+import urllib.parse
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Normalize database URL for SQLAlchemy asyncpg
-db_url = settings.DATABASE_URL
-if db_url.startswith("postgres://"):
-    db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
-elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+asyncpg://"):
-    db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+# Normalize database URL for SQLAlchemy asyncpg (especially for Neon and cloud Postgres)
+raw_url = settings.DATABASE_URL
+if raw_url.startswith("postgres://"):
+    raw_url = raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif raw_url.startswith("postgresql://") and not raw_url.startswith("postgresql+asyncpg://"):
+    raw_url = raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+if "asyncpg" in raw_url:
+    try:
+        parsed = urllib.parse.urlsplit(raw_url)
+        qs = urllib.parse.parse_qs(parsed.query)
+        # asyncpg does not accept channel_binding
+        qs.pop("channel_binding", None)
+        # asyncpg expects ssl=... rather than sslmode=...
+        if "sslmode" in qs and "ssl" not in qs:
+            qs["ssl"] = [qs.pop("sslmode")[0]]
+        new_query = urllib.parse.urlencode({k: v[0] for k, v in qs.items()})
+        db_url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
+    except Exception:
+        db_url = raw_url
+else:
+    db_url = raw_url
 
 engine_kwargs = {"echo": False}
 if "sqlite" in db_url:

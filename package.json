@@ -1,0 +1,12 @@
+{
+  "name": "codesync-ai",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm run build --prefix frontend",
+    "test": "npm run test --prefix frontend"
+  },
+  "dependencies": {
+    "@neon/config": "^1.14.4",
+    "@neon/env": "^2.1.7"
+  }
+}
