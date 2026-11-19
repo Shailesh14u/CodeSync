@@ -37,6 +37,36 @@ export const WorkspacePage: React.FC = () => {
   const [logs, setLogs] = useState<Array<{ id: string; type: 'info' | 'success' | 'error' | 'header'; text: string; timestamp: string }>>([]);
   const [executionHistory, setExecutionHistory] = useState<ExecutionResponse[]>([]);
 
+  // Adjustable window dimensions (with local persistence)
+  const [leftWidth, setLeftWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('codesync_ide_left_width');
+      return saved ? Math.max(160, Math.min(480, parseInt(saved, 10))) : 240;
+    } catch {
+      return 240;
+    }
+  });
+
+  const [rightWidth, setRightWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('codesync_ide_right_width');
+      return saved ? Math.max(260, Math.min(650, parseInt(saved, 10))) : 340;
+    } catch {
+      return 340;
+    }
+  });
+
+  const [bottomHeight, setBottomHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('codesync_ide_bottom_height');
+      return saved ? Math.max(100, Math.min(600, parseInt(saved, 10))) : 220;
+    } catch {
+      return 220;
+    }
+  });
+
+  const [isResizing, setIsResizing] = useState<'left' | 'right' | 'bottom' | null>(null);
+
   const {
     openTabs,
     activeFileId,
@@ -46,6 +76,8 @@ export const WorkspacePage: React.FC = () => {
     markFileSaved,
     setSaveStatus,
     isLeftSidebarOpen,
+    isRightSidebarOpen,
+    isBottomPanelOpen,
     resetEditor,
   } = useEditorStore();
 
@@ -55,6 +87,64 @@ export const WorkspacePage: React.FC = () => {
 
   // Debounced auto-save timer ref
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Resize Drag Listener
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizing === 'left') {
+        const newWidth = Math.max(160, Math.min(window.innerWidth * 0.45, e.clientX));
+        setLeftWidth(newWidth);
+        try { localStorage.setItem('codesync_ide_left_width', String(Math.round(newWidth))); } catch {}
+      } else if (isResizing === 'right') {
+        const newWidth = Math.max(260, Math.min(window.innerWidth * 0.5, window.innerWidth - e.clientX));
+        setRightWidth(newWidth);
+        try { localStorage.setItem('codesync_ide_right_width', String(Math.round(newWidth))); } catch {}
+      } else if (isResizing === 'bottom') {
+        const newHeight = Math.max(90, Math.min(window.innerHeight * 0.7, window.innerHeight - e.clientY));
+        setBottomHeight(newHeight);
+        try { localStorage.setItem('codesync_ide_bottom_height', String(Math.round(newHeight))); } catch {}
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      // Trigger Monaco editor layout recalculation
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.body.style.userSelect = 'none';
+    if (isResizing === 'bottom') {
+      document.body.style.cursor = 'row-resize';
+    } else {
+      document.body.style.cursor = 'col-resize';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isResizing]);
+
+  const handleMouseDownLeft = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing('left');
+  };
+
+  const handleMouseDownRight = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing('right');
+  };
+
+  const handleMouseDownBottom = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing('bottom');
+  };
 
   // 1. Load Workspace, Files & History on mount
   const loadWorkspaceData = useCallback(async () => {
@@ -276,7 +366,7 @@ export const WorkspacePage: React.FC = () => {
 
   if (isLoadingWorkspace) {
     return (
-      <div className="h-[calc(100vh-4rem)] flex items-center justify-center bg-background-main">
+      <div className="flex-1 w-full flex items-center justify-center bg-background-main">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-accent-primary" />
           <p className="text-xs font-mono text-content-secondary">Initializing Monaco IDE workspace...</p>
@@ -287,7 +377,7 @@ export const WorkspacePage: React.FC = () => {
 
   if (errorMessage || !workspace) {
     return (
-      <div className="h-[calc(100vh-4rem)] flex items-center justify-center bg-background-main p-4">
+      <div className="flex-1 w-full flex items-center justify-center bg-background-main p-4">
         <div className="max-w-md w-full bg-background-panel border border-border-subtle rounded-2xl p-6 text-center space-y-4">
           <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
           <h3 className="text-base font-semibold text-content-main">Unable to Load Workspace</h3>
@@ -305,7 +395,7 @@ export const WorkspacePage: React.FC = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-background-main overflow-hidden">
+    <div className="flex-1 w-full flex flex-col bg-background-main overflow-hidden min-h-0 select-none">
       {/* 1. Top IDE Toolbar */}
       <EditorToolbar
         workspace={workspace}
@@ -317,26 +407,45 @@ export const WorkspacePage: React.FC = () => {
         onOpenInterviewMode={() => setIsInterviewModalOpen(true)}
       />
 
-      {/* 2. Main IDE Workspace Grid */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel: File Explorer */}
+      {/* 2. Main Resizable IDE Workspace Grid */}
+      <div className="flex-1 flex overflow-hidden min-h-0 relative">
+        {/* Left Panel: File Explorer (Resizable Width) */}
         {isLeftSidebarOpen && (
-          <div className="w-64 h-full shrink-0">
-            <FileExplorer
-              workspaceId={workspace.id}
-              files={files}
-              onRefresh={() => fetchFiles(workspace.id)}
-            />
-          </div>
+          <>
+            <div style={{ width: leftWidth }} className="h-full shrink-0 flex flex-col overflow-hidden">
+              <FileExplorer
+                workspaceId={workspace.id}
+                files={files}
+                onRefresh={() => fetchFiles(workspace.id)}
+              />
+            </div>
+
+            {/* Draggable Splitter Left */}
+            <div
+              onMouseDown={handleMouseDownLeft}
+              onDoubleClick={() => setLeftWidth(240)}
+              className={`w-1.5 h-full relative z-20 cursor-col-resize shrink-0 transition-colors group flex items-center justify-center select-none ${
+                isResizing === 'left' ? 'bg-accent-primary' : 'bg-transparent hover:bg-accent-primary/40'
+              }`}
+              title="Drag to resize File Explorer • Double-click to reset"
+            >
+              <div className="w-[1px] h-full bg-border-subtle group-hover:bg-accent-primary transition-colors" />
+              <div className="absolute flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="w-1 h-1 rounded-full bg-accent-primary" />
+                <div className="w-1 h-1 rounded-full bg-accent-primary" />
+                <div className="w-1 h-1 rounded-full bg-accent-primary" />
+              </div>
+            </div>
+          </>
         )}
 
-        {/* Center Panel: Tabs + Editor + Bottom Console */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Center Panel: Tabs + Editor + Bottom Console (Flex 1) */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
           {/* Multiple File Tabs Strip */}
           <EditorTabs />
 
           {/* Monaco Editor Canvas */}
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 overflow-hidden relative min-h-0">
             <MonacoEditorPane
               workspaceId={workspace.id}
               activeFile={activeFile}
@@ -345,16 +454,63 @@ export const WorkspacePage: React.FC = () => {
             />
           </div>
 
-          {/* Bottom Panel: Output / Terminal */}
-          <BottomPanel
-            logs={logs}
-            executionHistory={executionHistory}
-            onClearLogs={() => setLogs([])}
-          />
+          {/* Bottom Panel: Output / Terminal with Top Draggable Splitter */}
+          {isBottomPanelOpen && (
+            <>
+              {/* Draggable Splitter Bottom */}
+              <div
+                onMouseDown={handleMouseDownBottom}
+                onDoubleClick={() => setBottomHeight(220)}
+                className={`h-1.5 w-full relative z-20 cursor-row-resize shrink-0 transition-colors group flex items-center justify-center select-none ${
+                  isResizing === 'bottom' ? 'bg-accent-primary' : 'bg-transparent hover:bg-accent-primary/40'
+                }`}
+                title="Drag to resize Output Console • Double-click to reset"
+              >
+                <div className="h-[1px] w-full bg-border-subtle group-hover:bg-accent-primary transition-colors" />
+                <div className="absolute flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="w-1 h-1 rounded-full bg-accent-primary" />
+                  <div className="w-1 h-1 rounded-full bg-accent-primary" />
+                  <div className="w-1 h-1 rounded-full bg-accent-primary" />
+                </div>
+              </div>
+
+              {/* Bottom Console Panel Container (Resizable Height) */}
+              <div style={{ height: bottomHeight }} className="shrink-0 overflow-hidden flex flex-col">
+                <BottomPanel
+                  logs={logs}
+                  executionHistory={executionHistory}
+                  onClearLogs={() => setLogs([])}
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Right Panel: AI / Chat / Presence */}
-        <RightSidebar members={members} workspaceId={workspaceId} />
+        {/* Right Panel: AI Assistant / Team Chat / Collaborators (Resizable Width) */}
+        {isRightSidebarOpen && (
+          <>
+            {/* Draggable Splitter Right */}
+            <div
+              onMouseDown={handleMouseDownRight}
+              onDoubleClick={() => setRightWidth(340)}
+              className={`w-1.5 h-full relative z-20 cursor-col-resize shrink-0 transition-colors group flex items-center justify-center select-none ${
+                isResizing === 'right' ? 'bg-accent-secondary' : 'bg-transparent hover:bg-accent-secondary/40'
+              }`}
+              title="Drag to resize Assistant & Chat • Double-click to reset"
+            >
+              <div className="w-[1px] h-full bg-border-subtle group-hover:bg-accent-secondary transition-colors" />
+              <div className="absolute flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="w-1 h-1 rounded-full bg-accent-secondary" />
+                <div className="w-1 h-1 rounded-full bg-accent-secondary" />
+                <div className="w-1 h-1 rounded-full bg-accent-secondary" />
+              </div>
+            </div>
+
+            <div style={{ width: rightWidth }} className="h-full shrink-0 flex flex-col overflow-hidden">
+              <RightSidebar members={members} workspaceId={workspaceId} />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Share / Invite Modal */}

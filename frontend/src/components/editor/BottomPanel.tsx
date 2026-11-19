@@ -33,7 +33,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   if (!isBottomPanelOpen) return null;
 
   return (
-    <div className="h-56 border-t border-border-subtle bg-background-panel flex flex-col select-none shrink-0">
+    <div className="h-full w-full bg-background-panel flex flex-col select-none overflow-hidden">
       {/* Tab bar */}
       <div className="h-8 px-3 border-b border-border-subtle flex items-center justify-between bg-background-secondary/60">
         <div className="flex items-center gap-1">
