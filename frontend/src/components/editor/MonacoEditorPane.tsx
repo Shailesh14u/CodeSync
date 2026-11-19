@@ -37,6 +37,14 @@ function getDeterministicColor(str: string): string {
   return PALETTE[index];
 }
 
+interface CollabSession {
+  ydoc: Y.Doc;
+  provider: HocuspocusProvider;
+  yText: Y.Text;
+  isSynced: boolean;
+  cleanups: Array<() => void>;
+}
+
 export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
   workspaceId,
   activeFile,
@@ -45,15 +53,18 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
 }) => {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
-  const providerRef = useRef<HocuspocusProvider | null>(null);
-  const bindingRef = useRef<MonacoBinding | null>(null);
-  const ydocRef = useRef<Y.Doc | null>(null);
+  const activeBindingRef = useRef<MonacoBinding | null>(null);
+
+  // Per-file collaborative sessions cache to prevent duplicate inserts and reconnects on tab switch
+  const sessionsRef = useRef<Map<string, CollabSession>>(new Map());
 
   const onSaveRef = useRef(onSave);
   const onRunRef = useRef(onRun);
+  const activeFileRef = useRef(activeFile);
   useEffect(() => {
     onSaveRef.current = onSave;
     onRunRef.current = onRun;
+    activeFileRef.current = activeFile;
   });
 
   const { token, user } = useAuthStore();
@@ -63,7 +74,8 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     setCollabStatus, 
     setCollabUsers, 
     updateFileContent,
-    fileContents 
+    fileContents,
+    openTabs
   } = useEditorStore();
 
   const handleEditorMount: OnMount = (editor, monaco) => {
@@ -80,7 +92,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     });
   };
 
-  // Setup / Teardown Yjs & Hocuspocus CRDT real-time binding when active file changes
+  // Setup / Switch Yjs & Hocuspocus CRDT real-time binding when active file changes
   useEffect(() => {
     if (!editorRef.current || !activeFile) return;
 
@@ -88,113 +100,180 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     const model = editor.getModel();
     if (!model) return;
 
-    // 1. Cleanup previous session
-    if (bindingRef.current) {
-      bindingRef.current.destroy();
-      bindingRef.current = null;
-    }
-    if (providerRef.current) {
-      providerRef.current.destroy();
-      providerRef.current = null;
-    }
-    if (ydocRef.current) {
-      ydocRef.current.destroy();
-      ydocRef.current = null;
-    }
+    const fileId = activeFile.id;
+    let session = sessionsRef.current.get(fileId);
 
-    const ydoc = new Y.Doc();
-    ydocRef.current = ydoc;
+    // If session doesn't exist yet for this open file, create it
+    if (!session) {
+      const ydoc = new Y.Doc();
+      const yText = ydoc.getText('monaco');
+      const wsUrl = import.meta.env.VITE_COLLAB_WS_URL || 'ws://localhost:1234';
+      const documentName = `workspace:${workspaceId}:file:${fileId}`;
 
-    const wsUrl = import.meta.env.VITE_COLLAB_WS_URL || 'ws://localhost:1234';
-    const documentName = `workspace:${workspaceId}:file:${activeFile.id}`;
+      const initialText = fileContents[fileId] !== undefined
+        ? fileContents[fileId]
+        : (activeFile.content || '');
 
-    setCollabStatus('connecting');
+      setCollabStatus('connecting');
 
-    const provider = new HocuspocusProvider({
-      url: wsUrl,
-      name: documentName,
-      token: token || undefined,
-      document: ydoc,
-      onStatus: ({ status }) => {
-        setCollabStatus(status as any);
-      },
-      onSynced: () => {
-        setCollabStatus('connected');
-      },
-      onClose: () => {
-        setCollabStatus('disconnected');
-      },
-    });
-    providerRef.current = provider;
+      const provider = new HocuspocusProvider({
+        url: wsUrl,
+        name: documentName,
+        token: token || undefined,
+        document: ydoc,
+        onStatus: ({ status }) => {
+          if (activeFileRef.current?.id === fileId) {
+            setCollabStatus(status as any);
+          }
+        },
+        onSynced: () => {
+          const currentSession = sessionsRef.current.get(fileId);
+          if (currentSession) {
+            currentSession.isSynced = true;
+          }
+          if (activeFileRef.current?.id === fileId) {
+            setCollabStatus('connected');
+          }
+          // Seed ONLY if document is genuinely empty on server
+          if (yText.length === 0 && initialText) {
+            yText.insert(0, initialText);
+          }
+        },
+        onClose: () => {
+          if (activeFileRef.current?.id === fileId) {
+            setCollabStatus('disconnected');
+          }
+        },
+      });
 
-    // Set user awareness (name, unique color, ID)
-    const userColor = getDeterministicColor(user?.id || user?.username || 'user');
-    provider.setAwarenessField('user', {
-      id: user?.id,
-      name: user?.username || 'Anonymous',
-      color: userColor,
-    });
+      // User presence awareness
+      const userColor = getDeterministicColor(user?.id || user?.username || 'user');
+      provider.setAwarenessField('user', {
+        id: user?.id,
+        name: user?.username || 'Anonymous',
+        color: userColor,
+      });
 
-    // Track active collaborators via awareness protocol
-    if (provider.awareness) {
-      provider.awareness.on('change', () => {
-        if (!provider.awareness) return;
+      const onAwarenessChange = () => {
+        if (!provider.awareness || activeFileRef.current?.id !== fileId) return;
         const states = Array.from(provider.awareness.getStates().values());
         const activePeers: CollabUser[] = states
           .map((s: any) => s.user)
           .filter((u: any) => !!u && !!u.name);
-
         setCollabUsers(activePeers);
-      });
-    }
+      };
 
-    const yText = ydoc.getText('monaco');
-
-    // Seed initial content if yText is empty
-    const initialText = fileContents[activeFile.id] !== undefined
-      ? fileContents[activeFile.id]
-      : activeFile.content;
-
-    if (yText.length === 0 && initialText) {
-      yText.insert(0, initialText);
-    }
-
-    // Bind Monaco editor model to Y.Text with cursor awareness
-    try {
-      const binding = new MonacoBinding(
-        yText,
-        model,
-        new Set([editor]),
-        provider.awareness || undefined
-      );
-      bindingRef.current = binding;
+      if (provider.awareness) {
+        provider.awareness.on('change', onAwarenessChange);
+      }
 
       // Keep editor store content updated as Yjs changes occur
-      yText.observe(() => {
+      const textObserver = () => {
         const text = yText.toString();
-        updateFileContent(activeFile.id, text);
-      });
+        updateFileContent(fileId, text);
+      };
+      yText.observe(textObserver);
+
+      // Offline fallback: if after 1500ms still not synced and yText is empty, seed initial text
+      const offlineTimer = setTimeout(() => {
+        const curr = sessionsRef.current.get(fileId);
+        if (curr && !curr.isSynced && yText.length === 0 && initialText) {
+          yText.insert(0, initialText);
+        }
+      }, 1500);
+
+      session = {
+        ydoc,
+        provider,
+        yText,
+        isSynced: false,
+        cleanups: [
+          () => clearTimeout(offlineTimer),
+          () => yText.unobserve(textObserver),
+          () => {
+            if (provider.awareness) {
+              provider.awareness.off('change', onAwarenessChange);
+            }
+          },
+        ],
+      };
+
+      sessionsRef.current.set(fileId, session);
+    } else {
+      // Re-using existing active session without destroying/recreating!
+      if (session.isSynced) {
+        setCollabStatus('connected');
+      } else {
+        setCollabStatus((session.provider.status as any) || 'connecting');
+      }
+
+      // Re-evaluate collaborators for this file
+      if (session.provider.awareness) {
+        const states = Array.from(session.provider.awareness.getStates().values());
+        const activePeers: CollabUser[] = states
+          .map((s: any) => s.user)
+          .filter((u: any) => !!u && !!u.name);
+        setCollabUsers(activePeers);
+      }
+    }
+
+    // Detach previous binding from editor
+    if (activeBindingRef.current) {
+      activeBindingRef.current.destroy();
+      activeBindingRef.current = null;
+    }
+
+    // Bind Monaco editor model to this active file's Y.Text
+    try {
+      const binding = new MonacoBinding(
+        session.yText,
+        model,
+        new Set([editor]),
+        session.provider.awareness || undefined
+      );
+      activeBindingRef.current = binding;
     } catch (err) {
-      console.warn('[Collab] Fallback to standalone mode:', err);
+      console.warn('[Collab] Binding error:', err);
     }
 
     return () => {
-      if (bindingRef.current) {
-        bindingRef.current.destroy();
-        bindingRef.current = null;
+      if (activeBindingRef.current) {
+        activeBindingRef.current.destroy();
+        activeBindingRef.current = null;
       }
-      if (providerRef.current) {
-        providerRef.current.destroy();
-        providerRef.current = null;
+    };
+  }, [activeFile?.id, workspaceId, token, user, setCollabStatus, setCollabUsers, updateFileContent]);
+
+  // Clean up sessions for closed tabs
+  useEffect(() => {
+    const openIds = new Set(openTabs.map((t) => t.id));
+    for (const [fileId, session] of sessionsRef.current.entries()) {
+      if (!openIds.has(fileId)) {
+        session.cleanups.forEach((c) => c());
+        session.provider.destroy();
+        session.ydoc.destroy();
+        sessionsRef.current.delete(fileId);
       }
-      if (ydocRef.current) {
-        ydocRef.current.destroy();
-        ydocRef.current = null;
+    }
+  }, [openTabs]);
+
+  // Clean up all sessions on component unmount
+  useEffect(() => {
+    return () => {
+      if (activeBindingRef.current) {
+        activeBindingRef.current.destroy();
+        activeBindingRef.current = null;
       }
+      for (const [, session] of sessionsRef.current.entries()) {
+        session.cleanups.forEach((c) => c());
+        session.provider.destroy();
+        session.ydoc.destroy();
+      }
+      sessionsRef.current.clear();
       setCollabStatus('disconnected');
       setCollabUsers([]);
     };
-  }, [activeFile?.id, workspaceId, token, user, setCollabStatus, setCollabUsers, updateFileContent]);
+  }, []);
 
   const mapToMonacoLanguage = (lang?: string, name?: string): string => {
     if (name) {
@@ -221,7 +300,8 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
       case 'typescript':
       case 'ts': return 'typescript';
       case 'java': return 'java';
-      case 'markdown': return 'markdown';
+      case 'markdown':
+      case 'md': return 'markdown';
       case 'json': return 'json';
       case 'html': return 'html';
       case 'css': return 'css';
@@ -232,40 +312,37 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
 
   if (!activeFile) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-8 bg-background-main text-center select-none">
-        <div className="w-14 h-14 rounded-2xl bg-background-panel border border-border-subtle flex items-center justify-center text-accent-primary mb-4 shadow-panel">
-          <FileCode className="w-7 h-7" />
-        </div>
-        <h3 className="text-base font-semibold text-content-main">No File Open</h3>
-        <p className="mt-1.5 text-xs text-content-secondary max-w-xs leading-relaxed">
-          Select a file from the explorer on the left or create a new file to begin editing.
-        </p>
-        <div className="mt-6 flex items-center gap-4 text-xs font-mono text-content-muted">
-          <span>Ctrl + S: Save</span>
-          <span>•</span>
-          <span>Ctrl + Enter: Run</span>
-        </div>
+      <div className="h-full flex flex-col items-center justify-center bg-background-main text-content-muted select-none">
+        <FileCode className="w-12 h-12 mb-3 stroke-[1.25] text-content-muted/50" />
+        <p className="text-sm font-medium text-content-secondary">No File Open</p>
+        <p className="text-xs text-content-muted mt-1">Select or create a file in Explorer to begin editing</p>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full relative bg-[#1E1E1E]">
-      {/* Real-time Connection Status & Active Collaborators floating bar */}
-      <div className="absolute top-2 right-6 z-20 flex items-center gap-2 pointer-events-none">
-        {/* Collaborator Avatars */}
+    <div className="relative h-full w-full overflow-hidden bg-background-main">
+      {/* Collaboration Status & Active Collaborators floating pill bar */}
+      <div className="absolute top-3 right-5 z-20 flex items-center gap-2 pointer-events-none">
+        {/* Collaborators Avatars */}
         {collabUsers.length > 0 && (
-          <div className="flex -space-x-1.5 overflow-hidden bg-background-panel/90 border border-border-subtle px-2 py-1 rounded-full shadow-panel backdrop-blur-sm pointer-events-auto">
-            {collabUsers.map((u, i) => (
-              <span
-                key={i}
-                className="w-5 h-5 rounded-full text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-background-panel uppercase"
-                style={{ backgroundColor: u.color }}
-                title={`${u.name} (Active now)`}
+          <div className="flex items-center -space-x-1.5 bg-background-panel/90 border border-border-subtle px-2 py-1 rounded-full shadow-panel backdrop-blur-sm pointer-events-auto">
+            <Users className="w-3.5 h-3.5 text-accent-secondary mr-1.5" />
+            {collabUsers.slice(0, 4).map((u) => (
+              <div
+                key={u.id}
+                title={u.name}
+                style={{ backgroundColor: u.color || '#6366F1' }}
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-background-panel uppercase"
               >
                 {u.name.charAt(0)}
-              </span>
+              </div>
             ))}
+            {collabUsers.length > 4 && (
+              <span className="text-[10px] text-content-secondary ml-1 font-mono">
+                +{collabUsers.length - 4}
+              </span>
+            )}
           </div>
         )}
 
@@ -294,13 +371,9 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
         height="100%"
         width="100%"
         theme="vs-dark"
+        path={`file-${activeFile.id}-${activeFile.name}`}
         language={mapToMonacoLanguage(activeFile.language, activeFile.name)}
         onMount={handleEditorMount}
-        onChange={(val) => {
-          if (activeFile) {
-            updateFileContent(activeFile.id, val || '');
-          }
-        }}
         options={{
           fontSize: 13.5,
           fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace",
@@ -328,11 +401,6 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
             enabled: true,
           },
         }}
-        loading={
-          <div className="h-full flex items-center justify-center bg-background-panel text-xs font-mono text-content-secondary">
-            Loading Monaco Editor & Yjs Mesh...
-          </div>
-        }
       />
     </div>
   );
