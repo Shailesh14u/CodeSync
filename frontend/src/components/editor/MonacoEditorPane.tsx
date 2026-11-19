@@ -151,7 +151,10 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     if (!session) {
       const ydoc = new Y.Doc();
       const yText = ydoc.getText('monaco');
-      const wsUrl = import.meta.env.VITE_COLLAB_WS_URL || 'ws://localhost:1234';
+      let wsUrl = import.meta.env.VITE_COLLAB_WS_URL || 'ws://localhost:1234';
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+        wsUrl = wsUrl.replace('ws://', 'wss://');
+      }
       const documentName = `workspace:${workspaceId}:file:${fileId}`;
 
       const initialText = fileContents[fileId] !== undefined

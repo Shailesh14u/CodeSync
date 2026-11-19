@@ -4,7 +4,7 @@ const { Server } = require('@hocuspocus/server');
 const jwt = require('jsonwebtoken');
 const Y = require('yjs');
 
-const PORT = parseInt(process.env.COLLAB_SERVER_PORT || '1234', 10);
+const PORT = parseInt(process.env.PORT || process.env.COLLAB_SERVER_PORT || '1234', 10);
 const SECRET_KEY = process.env.SECRET_KEY || 'codesync-ai-super-secret-key-change-in-production-min-32-chars';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
