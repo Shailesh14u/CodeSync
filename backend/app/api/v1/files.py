@@ -75,7 +75,10 @@ async def create_file(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=f"A file or directory at path '{path}' already exists.")
 
-    language = data.language or detect_language(data.name)
+    if data.language and data.language.lower() not in ["text", "plaintext"]:
+        language = data.language.lower()
+    else:
+        language = detect_language(data.name)
     content = data.content or ""
     size_bytes = len(content.encode("utf-8")) if not data.is_directory else 0
 

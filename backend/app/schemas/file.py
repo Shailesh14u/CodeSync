@@ -7,7 +7,7 @@ class FileCreate(BaseModel):
     path: str = Field(..., min_length=1, max_length=1000)
     is_directory: bool = False
     parent_id: Optional[str] = None
-    language: Optional[str] = "text"
+    language: Optional[str] = None
     content: Optional[str] = ""
 
 class FileUpdate(BaseModel):

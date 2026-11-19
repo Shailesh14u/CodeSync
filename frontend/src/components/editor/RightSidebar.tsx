@@ -165,11 +165,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           <div className="flex items-center gap-1">
             <button
               onClick={() => setActiveRightTab('ai')}
-              className={`px-2 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors ${
-                activeRightTab === 'ai'
+              className={`px-2 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors ${activeRightTab === 'ai'
                   ? 'text-accent-secondary bg-background-panel font-medium'
                   : 'text-content-secondary hover:text-content-main'
-              }`}
+                }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-accent-secondary" />
               AI Assistant
@@ -177,11 +176,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
             <button
               onClick={() => setActiveRightTab('chat')}
-              className={`px-2 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors ${
-                activeRightTab === 'chat'
+              className={`px-2 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors ${activeRightTab === 'chat'
                   ? 'text-accent-primary bg-background-panel font-medium'
                   : 'text-content-secondary hover:text-content-main'
-              }`}
+                }`}
             >
               <MessageSquare className="w-3.5 h-3.5 text-accent-primary" />
               Chat
@@ -189,11 +187,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
             <button
               onClick={() => setActiveRightTab('collaborators')}
-              className={`px-2 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors ${
-                activeRightTab === 'collaborators'
+              className={`px-2 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors ${activeRightTab === 'collaborators'
                   ? 'text-emerald-400 bg-background-panel font-medium'
                   : 'text-content-secondary hover:text-content-main'
-              }`}
+                }`}
             >
               <Users className="w-3.5 h-3.5 text-emerald-400" />
               Members ({members.length})

@@ -1,12 +1,13 @@
 import os
 import pytest
-from app.core.database import engine, Base
-import app.models
 
-# Ensure tests use an isolated async SQLite database
+# Ensure tests use an isolated async SQLite database before importing app modules
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_codesync.db"
 os.environ["APP_ENV"] = "testing"
 os.environ["SECRET_KEY"] = "test-secret-key-for-codesync-ai-testing-only-12345"
+
+from app.core.database import engine, Base
+import app.models
 
 @pytest.fixture(autouse=True)
 async def init_test_db():

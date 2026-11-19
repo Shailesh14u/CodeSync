@@ -49,6 +49,13 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
   const bindingRef = useRef<MonacoBinding | null>(null);
   const ydocRef = useRef<Y.Doc | null>(null);
 
+  const onSaveRef = useRef(onSave);
+  const onRunRef = useRef(onRun);
+  useEffect(() => {
+    onSaveRef.current = onSave;
+    onRunRef.current = onRun;
+  });
+
   const { token, user } = useAuthStore();
   const { 
     collabStatus, 
@@ -63,13 +70,13 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     editorRef.current = editor;
     monacoRef.current = monaco;
 
-    // Custom keyboard shortcuts
+    // Custom keyboard shortcuts always delegating to latest callbacks
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      onSave();
+      onSaveRef.current();
     });
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      onRun();
+      onRunRef.current();
     });
   };
 
@@ -289,6 +296,11 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
         theme="vs-dark"
         language={mapToMonacoLanguage(activeFile.language, activeFile.name)}
         onMount={handleEditorMount}
+        onChange={(val) => {
+          if (activeFile) {
+            updateFileContent(activeFile.id, val || '');
+          }
+        }}
         options={{
           fontSize: 13.5,
           fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace",

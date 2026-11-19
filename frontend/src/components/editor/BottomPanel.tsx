@@ -22,6 +22,14 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
     setActiveBottomTab 
   } = useEditorStore();
 
+  const logsEndRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (activeBottomTab === 'output') {
+      logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs, activeBottomTab]);
+
   if (!isBottomPanelOpen) return null;
 
   return (
@@ -111,6 +119,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 </div>
               ))
             )}
+            <div ref={logsEndRef} />
           </div>
         )}
 
@@ -151,6 +160,7 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
                 </div>
               ))
             )}
+            <div ref={logsEndRef} />
           </div>
         )}
 

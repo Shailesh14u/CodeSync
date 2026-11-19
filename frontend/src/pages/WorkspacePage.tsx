@@ -99,29 +99,23 @@ export const WorkspacePage: React.FC = () => {
 
   // 2. Perform Save Action (Internal & Manual)
   const saveActiveFile = useCallback(async () => {
-    if (!activeFileId || !dirtyFiles[activeFileId]) return;
+    const editorState = useEditorStore.getState();
+    const currentActiveId = editorState.activeFileId;
+    if (!currentActiveId || !editorState.dirtyFiles[currentActiveId]) return;
 
-    const contentToSave = fileContents[activeFileId];
+    const contentToSave = editorState.fileContents[currentActiveId];
     if (contentToSave === undefined) return;
 
     setSaveStatus('saving');
     try {
-      const updated = await apiService.updateFile(activeFileId, { content: contentToSave });
-      markFileSaved(activeFileId, updated.content);
-      setLogs((prev) => [
-        {
-          id: Math.random().toString(),
-          type: 'info',
-          text: `[Auto-Save] Successfully saved ${updated.name} (${updated.size_bytes} bytes).`,
-          timestamp: new Date().toLocaleTimeString(),
-        },
-        ...prev.slice(0, 50),
-      ]);
+      const updated = await apiService.updateFile(currentActiveId, { content: contentToSave });
+      markFileSaved(currentActiveId, updated.content);
+      setSaveStatus('saved');
     } catch (err: any) {
       console.error('Failed to save file', err);
       setSaveStatus('unsaved');
     }
-  }, [activeFileId, dirtyFiles, fileContents, markFileSaved, setSaveStatus]);
+  }, [markFileSaved, setSaveStatus]);
 
   // 3. Debounced Auto-Save Watcher (1200ms delay)
   useEffect(() => {
@@ -144,48 +138,66 @@ export const WorkspacePage: React.FC = () => {
 
   // 4. Code Execution Handler
   const handleRunCode = async () => {
-    if (!activeFile || !workspace) {
-      alert('Please open a file to execute.');
+    const editorState = useEditorStore.getState();
+    const currentActiveFile = editorState.openTabs.find((t) => t.id === editorState.activeFileId);
+
+    if (!currentActiveFile || !workspace) {
+      alert('Please select and open a file to execute.');
       return;
     }
 
+    // Auto-detect real execution language from file extension
+    const lowerName = currentActiveFile.name.toLowerCase();
+    let runLanguage = currentActiveFile.language;
+    if (lowerName.endsWith('.py')) runLanguage = 'python';
+    else if (lowerName.endsWith('.js') || lowerName.endsWith('.jsx')) runLanguage = 'javascript';
+    else if (lowerName.endsWith('.ts') || lowerName.endsWith('.tsx')) runLanguage = 'typescript';
+    else if (lowerName.endsWith('.cpp') || lowerName.endsWith('.c') || lowerName.endsWith('.h')) runLanguage = 'cpp';
+    else if (lowerName.endsWith('.java')) runLanguage = 'java';
+
     // Auto-save active file if dirty before executing
-    if (dirtyFiles[activeFile.id]) {
+    if (editorState.dirtyFiles[currentActiveFile.id]) {
       await saveActiveFile();
+    }
+
+    // Ensure bottom panel is open and focused on Output tab
+    editorState.setActiveBottomTab('output');
+    if (!editorState.isBottomPanelOpen) {
+      editorState.toggleBottomPanel();
     }
 
     const timestamp = new Date().toLocaleTimeString();
     const runId = Math.random().toString().slice(2, 8);
 
-    setLogs((prev) => [
-      {
-        id: Math.random().toString(),
-        type: 'header',
-        text: `🚀 [Sandbox Execution #${runId}] Submitting ${activeFile.name} (${activeFile.language}) to isolated container runner...`,
-        timestamp,
-      },
-      ...prev,
-    ]);
+    const startEntry = {
+      id: Math.random().toString(),
+      type: 'header' as const,
+      text: `🚀 [Sandbox Execution #${runId}] Running ${currentActiveFile.name} (${runLanguage})...`,
+      timestamp,
+    };
+    setLogs((prev) => [...prev, startEntry]);
 
     try {
-      // Collect workspace files
-      const filesPayload = openTabs.map((t) => ({
+      // Collect workspace files with latest live buffer content
+      const filesPayload = editorState.openTabs.map((t) => ({
         name: t.name,
-        content: fileContents[t.id] !== undefined ? fileContents[t.id] : t.content,
+        content: editorState.fileContents[t.id] !== undefined ? editorState.fileContents[t.id] : t.content,
       }));
 
-      // Ensure active file is included
-      if (!filesPayload.some((f) => f.name === activeFile.name)) {
+      // Ensure active file is present with current buffer
+      if (!filesPayload.some((f) => f.name === currentActiveFile.name)) {
         filesPayload.push({
-          name: activeFile.name,
-          content: fileContents[activeFile.id] !== undefined ? fileContents[activeFile.id] : activeFile.content,
+          name: currentActiveFile.name,
+          content: editorState.fileContents[currentActiveFile.id] !== undefined
+            ? editorState.fileContents[currentActiveFile.id]
+            : currentActiveFile.content,
         });
       }
 
       const execResult = await apiService.runCode({
         workspace_id: workspace.id,
-        language: activeFile.language,
-        entrypoint: activeFile.name,
+        language: runLanguage,
+        entrypoint: currentActiveFile.name,
         files: filesPayload,
         timeout_sec: 10,
       });
@@ -196,20 +208,27 @@ export const WorkspacePage: React.FC = () => {
       // Output formatting
       const newLogEntries: Array<{ id: string; type: 'info' | 'success' | 'error' | 'header'; text: string; timestamp: string }> = [];
 
-      if (execResult.stdout) {
+      if (execResult.stdout && execResult.stdout.trim()) {
         newLogEntries.push({
           id: Math.random().toString(),
           type: 'info',
-          text: execResult.stdout,
+          text: execResult.stdout.trimEnd(),
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      } else if (!execResult.stderr && execResult.exit_code === 0) {
+        newLogEntries.push({
+          id: Math.random().toString(),
+          type: 'info',
+          text: '(Program executed successfully with no stdout output)',
           timestamp: new Date().toLocaleTimeString(),
         });
       }
 
-      if (execResult.stderr) {
+      if (execResult.stderr && execResult.stderr.trim()) {
         newLogEntries.push({
           id: Math.random().toString(),
           type: 'error',
-          text: execResult.stderr,
+          text: execResult.stderr.trimEnd(),
           timestamp: new Date().toLocaleTimeString(),
         });
       }
@@ -222,16 +241,16 @@ export const WorkspacePage: React.FC = () => {
         timestamp: new Date().toLocaleTimeString(),
       });
 
-      setLogs((prev) => [...newLogEntries, ...prev]);
+      setLogs((prev) => [...prev, ...newLogEntries]);
     } catch (err: any) {
       setLogs((prev) => [
+        ...prev,
         {
           id: Math.random().toString(),
           type: 'error',
           text: `[Execution Failed] ${err.response?.data?.detail || err.message}`,
           timestamp: new Date().toLocaleTimeString(),
         },
-        ...prev,
       ]);
     }
   };

@@ -59,7 +59,11 @@ const server = Server.configure({
 
     const fileId = parts[3];
     try {
-      const res = await fetch(`${BACKEND_URL}/api/v1/collaboration/docs/${fileId}`);
+      const res = await fetch(`${BACKEND_URL}/api/v1/collaboration/docs/${fileId}`, {
+        headers: {
+          'X-Internal-Secret': SECRET_KEY,
+        },
+      });
       if (res.ok) {
         const docData = await res.json();
         const monacoText = document.getText('monaco');
@@ -91,7 +95,10 @@ const server = Server.configure({
 
       await fetch(`${BACKEND_URL}/api/v1/collaboration/docs/${fileId}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Secret': SECRET_KEY,
+        },
         body: JSON.stringify({
           content: plainText,
           state_base64: stateBase64,
