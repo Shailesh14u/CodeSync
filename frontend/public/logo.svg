@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+
+    <!-- Border Glow Gradient -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+
+    <!-- Code Bracket Neon Gradient -->
+    <linearGradient id="bracketGradLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+
+    <linearGradient id="bracketGradRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+
+    <!-- AI Sync Slash Gradient -->
+    <linearGradient id="syncGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06B6D4"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+
+    <!-- Core Sparkle Radial -->
+    <radialGradient id="sparkleGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="1"/>
+      <stop offset="60%" stop-color="#818CF8" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Glow Filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#6366F1" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Base Squircle with Shadow & Border -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bgGrad)" filter="url(#softShadow)"/>
+  <rect x="8" y="8" width="112" height="112" rx="28" stroke="url(#borderGrad)" stroke-width="2.5" stroke-opacity="0.9"/>
+
+  <!-- Subtle Inner Grid / Tech Dots Pattern -->
+  <circle cx="28" cy="28" r="1.5" fill="#334155" opacity="0.6"/>
+  <circle cx="100" cy="28" r="1.5" fill="#334155" opacity="0.6"/>
+  <circle cx="28" cy="100" r="1.5" fill="#334155" opacity="0.6"/>
+  <circle cx="100" cy="100" r="1.5" fill="#334155" opacity="0.6"/>
+
+  <!-- Left Code Bracket: < -->
+  <path d="M44 42L28 64L44 86" 
+        stroke="url(#bracketGradLeft)" 
+        stroke-width="7" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+        filter="url(#neonGlow)"/>
+
+  <!-- Right Code Bracket: > -->
+  <path d="M84 42L100 64L84 86" 
+        stroke="url(#bracketGradRight)" 
+        stroke-width="7" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+        filter="url(#neonGlow)"/>
+
+  <!-- Dynamic Sync Slash: / (Intersecting Wave) -->
+  <path d="M72 34L56 94" 
+        stroke="url(#syncGrad)" 
+        stroke-width="6.5" 
+        stroke-linecap="round"
+        filter="url(#neonGlow)"/>
+
+  <!-- Central AI Sync Node (Pulsing Diamond Sparkle) -->
+  <g transform="translate(64, 64)">
+    <circle cx="0" cy="0" r="10" fill="url(#sparkleGlow)" opacity="0.85"/>
+    <!-- 4-point Diamond Star -->
+    <path d="M0 -9C0 -3 3 0 9 0C3 0 0 3 0 9C0 3 -3 0 -9 0C-3 0 0 -3 0 -9Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Top-Right AI Micro-Sparkle -->
+  <g transform="translate(92, 34) scale(0.65)">
+    <path d="M0 -8C0 -2 2 0 8 0C2 0 0 2 0 8C0 2 -2 0 -8 0C-2 0 0 -2 0 -8Z" fill="#38BDF8" opacity="0.9"/>
+  </g>
+</svg>

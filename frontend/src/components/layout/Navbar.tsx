@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Code2, ChevronRight, LogOut, LayoutDashboard, User } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { Logo } from '../ui/Logo';
 import { apiService } from '../../services/api';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -37,17 +38,10 @@ export const Navbar: React.FC = () => {
         {/* Brand */}
         <div className="flex items-center gap-3">
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-accent-primary to-accent-secondary flex items-center justify-center text-white shadow-glow-primary transition-transform group-hover:scale-105">
-              <Code2 className="w-5 h-5" />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-base text-content-main tracking-tight font-sans">CodeSync AI</span>
-                <span className="text-[10px] font-mono text-content-muted px-1.5 py-0.5 rounded bg-background-panel border border-border-subtle">
-                  {version}
-                </span>
-              </div>
-            </div>
+            <Logo size="md" />
+            <span className="text-[10px] font-mono text-content-muted px-1.5 py-0.5 rounded bg-background-panel border border-border-subtle hidden sm:inline-block">
+              {version}
+            </span>
           </Link>
 
           {/* System status pill */}

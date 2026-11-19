@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowLeft, 
   Play, 
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { Logo } from '../ui/Logo';
 import { Workspace, FileItem } from '../../types';
 import { useEditorStore } from '../../stores/editorStore';
 
@@ -68,8 +69,12 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
   return (
     <div className="h-12 border-b border-border-subtle bg-background-panel px-3 flex items-center justify-between select-none shrink-0">
-      {/* Left section: navigation & workspace metadata */}
-      <div className="flex items-center gap-3">
+      {/* Left section: Logo, navigation & workspace metadata */}
+      <div className="flex items-center gap-2.5">
+        <Link to="/" title="CodeSync AI Home" className="transition-transform hover:scale-105 shrink-0">
+          <Logo size="sm" showText={false} />
+        </Link>
+
         <Button
           variant="ghost"
           size="sm"

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="bracketGradLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="bracketGradRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="syncGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06B6D4"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#A855F7"/>
+    </linearGradient>
+    <radialGradient id="sparkleGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="1"/>
+      <stop offset="60%" stop-color="#818CF8" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#bgGrad)"/>
+  <rect x="6" y="6" width="116" height="116" rx="28" stroke="url(#borderGrad)" stroke-width="4"/>
+  <path d="M42 40L26 64L42 88" stroke="url(#bracketGradLeft)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M86 40L102 64L86 88" stroke="url(#bracketGradRight)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M74 30L54 98" stroke="url(#syncGrad)" stroke-width="8" stroke-linecap="round"/>
+  <g transform="translate(64, 64)">
+    <circle cx="0" cy="0" r="11" fill="url(#sparkleGlow)"/>
+    <path d="M0 -10C0 -3 4 0 10 0C4 0 0 4 0 10C0 4 -4 0 -10 0C-4 0 0 -4 0 -10Z" fill="#FFFFFF"/>
+  </g>
+</svg>
