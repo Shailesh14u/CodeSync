@@ -18,6 +18,7 @@ import {
   FileCode2,
   CheckCircle2,
   Settings,
+  Check,
 } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
 import { WorkspaceMember } from '../../types';
@@ -46,6 +47,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
     openTabs,
     activeFileId,
     fileContents,
+    applyCodeToActiveEditor,
   } = useEditorStore();
 
   // AI state
@@ -483,15 +485,30 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                     </div>
                   )}
 
-                  {/* Review Diff Button */}
+                  {/* Action Buttons for AI Suggested Code */}
                   {hasDiffToReview && (
-                    <button
-                      onClick={() => setIsDiffModalOpen(true)}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg text-xs font-medium shadow-sm transition-all"
-                    >
-                      <span>Review Suggested Diff</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          applyCodeToActiveEditor(aiResponse.suggested_code);
+                          setAppliedSuccess(true);
+                          apiService.sendAIFeedback(aiResponse.request_id, true).catch(() => {});
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium shadow-sm transition-all"
+                        title="Apply code directly to editor without diff modal"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Apply to Editor</span>
+                      </button>
+
+                      <button
+                        onClick={() => setIsDiffModalOpen(true)}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-accent-primary hover:bg-accent-primary/90 text-white rounded-lg text-xs font-medium shadow-sm transition-all"
+                      >
+                        <span>Review Diff</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

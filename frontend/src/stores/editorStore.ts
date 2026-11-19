@@ -34,6 +34,11 @@ interface EditorState {
   setActiveRightTab: (tab: 'ai' | 'chat' | 'collaborators') => void;
   setActiveBottomTab: (tab: 'terminal' | 'output' | 'problems') => void;
   resetEditor: () => void;
+
+  // Active Editor Programmatic Content Application (e.g. AI Diff apply, snapshot restore)
+  applyContentHandler: ((code: string) => void) | null;
+  setApplyContentHandler: (handler: ((code: string) => void) | null) => void;
+  applyCodeToActiveEditor: (code: string) => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -51,6 +56,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isBottomPanelOpen: true,
   activeRightTab: 'ai',
   activeBottomTab: 'output',
+
+  applyContentHandler: null,
+  setApplyContentHandler: (handler) => set({ applyContentHandler: handler }),
+  applyCodeToActiveEditor: (code: string) => {
+    const { activeFileId, updateFileContent, applyContentHandler } = get();
+    if (applyContentHandler) {
+      applyContentHandler(code);
+    }
+    if (activeFileId) {
+      updateFileContent(activeFileId, code);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('codesync:apply-code', { detail: { code, fileId: activeFileId } })
+      );
+    }
+  },
 
   openFile: (file) => {
     const { openTabs, fileContents } = get();

@@ -75,8 +75,52 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     setCollabUsers, 
     updateFileContent,
     fileContents,
-    openTabs
+    openTabs,
+    setApplyContentHandler
   } = useEditorStore();
+
+  // Register active editor update handler for AI Diff apply & programmatic edits
+  useEffect(() => {
+    if (!activeFile) return;
+
+    const fileId = activeFile.id;
+    const handler = (newCode: string) => {
+      const session = sessionsRef.current.get(fileId);
+
+      // 1. Update Yjs CRDT if session exists
+      if (session) {
+        session.ydoc.transact(() => {
+          session.yText.delete(0, session.yText.length);
+          session.yText.insert(0, newCode);
+        });
+      }
+
+      // 2. Update Monaco model directly
+      if (editorRef.current) {
+        const model = editorRef.current.getModel();
+        if (model && model.getValue() !== newCode) {
+          model.setValue(newCode);
+        }
+      }
+
+      // 3. Update zustand store
+      updateFileContent(fileId, newCode);
+    };
+
+    setApplyContentHandler(handler);
+
+    const eventListener = (e: any) => {
+      if (e.detail?.code !== undefined && (!e.detail?.fileId || e.detail?.fileId === fileId)) {
+        handler(e.detail.code);
+      }
+    };
+    window.addEventListener('codesync:apply-code', eventListener);
+
+    return () => {
+      setApplyContentHandler(null);
+      window.removeEventListener('codesync:apply-code', eventListener);
+    };
+  }, [activeFile?.id, updateFileContent, setApplyContentHandler]);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;

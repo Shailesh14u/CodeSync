@@ -21,7 +21,7 @@ export const DiffViewerModal: React.FC<DiffViewerModalProps> = ({
   language = 'python',
   onApplySuccess,
 }) => {
-  const { activeFileId, updateFileContent } = useEditorStore();
+  const { activeFileId, applyCodeToActiveEditor } = useEditorStore();
   const [submitting, setSubmitting] = React.useState(false);
 
   if (!isOpen) return null;
@@ -30,8 +30,8 @@ export const DiffViewerModal: React.FC<DiffViewerModalProps> = ({
     if (!activeFileId) return;
     setSubmitting(true);
     try {
-      // 1. Apply code to active file in store (which syncs to editor and triggers auto-save)
-      updateFileContent(activeFileId, aiResponse.suggested_code);
+      // 1. Apply code directly to Monaco editor buffer & Yjs CRDT
+      applyCodeToActiveEditor(aiResponse.suggested_code);
 
       // 2. Submit accepted feedback to backend
       await apiService.sendAIFeedback(aiResponse.request_id, true);
