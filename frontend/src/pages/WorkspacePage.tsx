@@ -3,8 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle, Copy, Check } from 'lucide-react';
 import { useEditorStore } from '../stores/editorStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
+import { useAuthStore } from '../stores/authStore';
 import { apiService } from '../services/api';
 import { Workspace, FileItem, WorkspaceMember, ExecutionResponse } from '../types';
+import * as Y from 'yjs';
+import { HocuspocusProvider } from '@hocuspocus/provider';
 
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { FileExplorer } from '../components/editor/FileExplorer';
@@ -82,8 +85,54 @@ export const WorkspacePage: React.FC = () => {
   } = useEditorStore();
 
   const { files, fetchFiles } = useWorkspaceStore();
+  const { token } = useAuthStore();
 
   const activeFile = openTabs.find((t) => t.id === activeFileId) || null;
+
+  // Real-time File Tree Synchronization across all peers (WebSocket CRDT + background polling)
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    let wsUrl = import.meta.env.VITE_COLLAB_WS_URL || 'ws://localhost:1234';
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+      wsUrl = wsUrl.replace('ws://', 'wss://');
+    }
+
+    const treeDoc = new Y.Doc();
+    const treeMap = treeDoc.getMap('tree');
+
+    const provider = new HocuspocusProvider({
+      url: wsUrl,
+      name: `workspace:${workspaceId}:tree`,
+      token: token || undefined,
+      document: treeDoc,
+    });
+
+    const onTreeChange = () => {
+      fetchFiles(workspaceId);
+    };
+    treeMap.observe(onTreeChange);
+
+    const onLocalTreeChanged = () => {
+      treeDoc.transact(() => {
+        treeMap.set('lastUpdate', Date.now());
+      });
+    };
+    window.addEventListener('codesync:tree-changed', onLocalTreeChanged);
+
+    // Continuous 2.5s auto-poll to guarantee convergence
+    const pollInterval = setInterval(() => {
+      fetchFiles(workspaceId);
+    }, 2500);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('codesync:tree-changed', onLocalTreeChanged);
+      treeMap.unobserve(onTreeChange);
+      provider.destroy();
+      treeDoc.destroy();
+    };
+  }, [workspaceId, token, fetchFiles]);
 
   // Debounced auto-save timer ref
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);

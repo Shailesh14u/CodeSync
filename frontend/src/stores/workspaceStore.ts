@@ -105,6 +105,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     try {
       const files = await apiService.getFiles(workspaceId);
       set({ files });
+
+      // Clean up open tabs for any files deleted remotely by collaborators
+      try {
+        const fileIdSet = new Set(files.map((f) => f.id));
+        const editor = useEditorStore.getState();
+        editor.openTabs.forEach((tab) => {
+          if (!fileIdSet.has(tab.id)) {
+            editor.closeTab(tab.id);
+          }
+        });
+      } catch {}
     } catch (err: any) {
       console.error('Failed to fetch workspace files', err);
     }
@@ -116,6 +127,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set((state) => ({
         files: [...state.files, file],
       }));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('codesync:tree-changed'));
+      }
       return file;
     } catch (err: any) {
       set({ error: err.response?.data?.detail || 'Failed to create file.' });
@@ -132,6 +146,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       try {
         useEditorStore.getState().closeTab(fileId);
       } catch {}
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('codesync:tree-changed'));
+      }
       return true;
     } catch (err: any) {
       set({ error: err.response?.data?.detail || 'Failed to delete file.' });
