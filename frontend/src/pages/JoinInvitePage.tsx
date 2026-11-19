@@ -35,8 +35,8 @@ export const JoinInvitePage: React.FC = () => {
             setWorkspaceName(ws.name);
             setStatus('success');
             setTimeout(() => {
-              navigate('/dashboard');
-            }, 2000);
+              navigate(`/workspace/${ws.id}`);
+            }, 1200);
           } else {
             setStatus('error');
             setErrorMessage('Invalid or expired invitation token.');
@@ -65,7 +65,7 @@ export const JoinInvitePage: React.FC = () => {
             <CheckCircle2 className="w-10 h-10 text-emerald-400" />
             <h3 className="text-base font-semibold text-content-main">Successfully Joined!</h3>
             <p className="text-xs text-content-secondary">
-              You are now a collaborator on <span className="text-content-main font-medium">{workspaceName}</span>. Redirecting to dashboard...
+              You are now a collaborator on <span className="text-content-main font-medium">{workspaceName}</span>. Redirecting to workspace...
             </p>
           </div>
         )}

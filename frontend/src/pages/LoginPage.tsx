@@ -33,7 +33,13 @@ export const LoginPage: React.FC = () => {
 
     const success = await login(usernameOrEmail.trim(), password);
     if (success) {
-      navigate(from, { replace: true });
+      const pendingToken = sessionStorage.getItem('pending_join_token');
+      if (pendingToken) {
+        sessionStorage.removeItem('pending_join_token');
+        navigate(`/join/${pendingToken}`, { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     }
   };
 

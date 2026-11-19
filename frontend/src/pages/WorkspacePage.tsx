@@ -349,10 +349,33 @@ export const WorkspacePage: React.FC = () => {
     if (!workspace) return;
     try {
       const invite = await apiService.createInvite(workspace.id, 'editor');
-      setActiveInviteUrl(invite.invite_url);
+      const normalizedUrl = invite.invite_url && !invite.invite_url.includes('localhost')
+        ? invite.invite_url
+        : `${window.location.origin}/join/${invite.token}`;
+      setActiveInviteUrl(normalizedUrl);
       setIsInviteModalOpen(true);
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to generate invitation link.');
+    }
+  };
+
+  const handleRestoreSuccess = async () => {
+    if (!workspace) return;
+    try {
+      const updatedFiles = await apiService.getFiles(workspace.id);
+      await fetchFiles(workspace.id);
+      const editor = useEditorStore.getState();
+      for (const file of updatedFiles) {
+        if (editor.openTabs.some((t) => t.id === file.id)) {
+          editor.updateFileContent(file.id, file.content);
+          editor.markFileSaved(file.id, file.content);
+          if (editor.activeFileId === file.id && editor.applyContentHandler) {
+            editor.applyContentHandler(file.content);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to reload files after restore', err);
     }
   };
 
@@ -559,7 +582,7 @@ export const WorkspacePage: React.FC = () => {
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
         workspaceId={workspace.id}
-        onRestoreSuccess={() => fetchFiles(workspace.id)}
+        onRestoreSuccess={handleRestoreSuccess}
       />
 
       {/* Coding Challenge / Technical Interview Mode Modal */}

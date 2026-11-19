@@ -106,7 +106,10 @@ export const DashboardPage: React.FC = () => {
   const handleGenerateInvite = async (ws: Workspace) => {
     try {
       const invite = await apiService.createInvite(ws.id, 'editor');
-      setActiveInviteUrl(invite.invite_url);
+      const normalizedUrl = invite.invite_url && !invite.invite_url.includes('localhost')
+        ? invite.invite_url
+        : `${window.location.origin}/join/${invite.token}`;
+      setActiveInviteUrl(normalizedUrl);
       setIsInviteModalOpen(true);
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to generate invitation link.');

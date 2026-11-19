@@ -56,7 +56,13 @@ export const RegisterPage: React.FC = () => {
 
     const success = await register(email.trim(), username.trim(), password, fullName.trim() || undefined);
     if (success) {
-      navigate('/dashboard', { replace: true });
+      const pendingToken = sessionStorage.getItem('pending_join_token');
+      if (pendingToken) {
+        sessionStorage.removeItem('pending_join_token');
+        navigate(`/join/${pendingToken}`, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
   };
 

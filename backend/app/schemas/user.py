@@ -1,6 +1,14 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, Annotated
 from datetime import datetime
+
+try:
+    import email_validator
+    from pydantic import EmailStr
+except ImportError:
+    from pydantic import StringConstraints
+    # Safe regex fallback when optional email-validator package is not installed
+    EmailStr = Annotated[str, StringConstraints(pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")]
 
 class UserRegister(BaseModel):
     email: EmailStr

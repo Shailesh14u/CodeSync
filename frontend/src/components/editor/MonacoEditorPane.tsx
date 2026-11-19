@@ -54,7 +54,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const activeBindingRef = useRef<MonacoBinding | null>(null);
-  const [isEditorMounted, setIsEditorMounted] = useState(false);
+  const [editorInstance, setEditorInstance] = useState<any>(null);
 
   // Per-file collaborative sessions cache to prevent duplicate inserts and reconnects on tab switch
   const sessionsRef = useRef<Map<string, CollabSession>>(new Map());
@@ -126,7 +126,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    setIsEditorMounted(true);
+    setEditorInstance(editor);
 
     // Custom keyboard shortcuts always delegating to latest callbacks
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -140,9 +140,9 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
 
   // Setup / Switch Yjs & Hocuspocus CRDT real-time binding when active file changes or editor mounts
   useEffect(() => {
-    if (!editorRef.current || !activeFile || !isEditorMounted) return;
+    if (!editorInstance || !activeFile) return;
 
-    const editor = editorRef.current;
+    const editor = editorInstance;
     const model = editor.getModel();
     if (!model) return;
 
@@ -282,7 +282,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
         activeBindingRef.current = null;
       }
     };
-  }, [activeFile?.id, isEditorMounted, workspaceId, token, user, setCollabStatus, setCollabUsers, updateFileContent]);
+  }, [activeFile?.id, editorInstance, workspaceId, token, user, setCollabStatus, setCollabUsers, updateFileContent]);
 
   // Clean up sessions for closed tabs
   useEffect(() => {
@@ -352,10 +352,22 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
 
   if (!activeFile) {
     return (
-      <div className="h-full flex flex-col items-center justify-center bg-background-main text-content-muted select-none">
-        <FileCode className="w-12 h-12 mb-3 stroke-[1.25] text-content-muted/50" />
-        <p className="text-sm font-medium text-content-secondary">No File Open</p>
-        <p className="text-xs text-content-muted mt-1">Select or create a file in Explorer to begin editing</p>
+      <div className="h-full flex flex-col items-center justify-center bg-background-main text-content-muted select-none p-6 text-center">
+        <FileCode className="w-14 h-14 mb-3 stroke-[1.25] text-accent-primary/40 animate-pulse" />
+        <p className="text-base font-semibold text-content-main">No File Open</p>
+        <p className="text-xs text-content-muted mt-1 max-w-sm">
+          Select a file from the explorer on the left or create a new file to start coding and collaborating in real time.
+        </p>
+        <div className="mt-6 flex flex-col gap-2.5 text-xs text-content-muted bg-background-panel/60 border border-border-subtle/80 rounded-xl p-4 shadow-panel">
+          <div className="flex items-center justify-between gap-6">
+            <span className="text-content-secondary">Save active file</span>
+            <kbd className="px-2 py-0.5 rounded bg-background-secondary border border-border-subtle font-mono text-[11px] text-content-main">Ctrl + S</kbd>
+          </div>
+          <div className="flex items-center justify-between gap-6">
+            <span className="text-content-secondary">Execute code sandbox</span>
+            <kbd className="px-2 py-0.5 rounded bg-background-secondary border border-border-subtle font-mono text-[11px] text-accent-primary">Ctrl + Enter</kbd>
+          </div>
+        </div>
       </div>
     );
   }

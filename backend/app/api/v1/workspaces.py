@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, delete
 from datetime import datetime, timezone, timedelta
 from typing import List
 import uuid
@@ -287,6 +287,21 @@ async def delete_workspace(
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    # Cleanly remove all workspace-dependent records across all tables
+    from app.models.collaboration import CollaborationDocument
+    from app.models.snapshot import Snapshot
+    from app.models.execution import Execution
+    from app.models.ai import AIRequestLog
+    from app.models.interview import InterviewSession
+    from app.models.message import Message
+
+    await db.execute(delete(CollaborationDocument).where(CollaborationDocument.workspace_id == workspace_id))
+    await db.execute(delete(Snapshot).where(Snapshot.workspace_id == workspace_id))
+    await db.execute(delete(Execution).where(Execution.workspace_id == workspace_id))
+    await db.execute(delete(AIRequestLog).where(AIRequestLog.workspace_id == workspace_id))
+    await db.execute(delete(InterviewSession).where(InterviewSession.workspace_id == workspace_id))
+    await db.execute(delete(Message).where(Message.workspace_id == workspace_id))
+
     await db.delete(ws)
     await db.commit()
     return None
@@ -295,6 +310,7 @@ async def delete_workspace(
 async def create_invitation(
     workspace_id: str,
     invite_in: InviteCreate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -314,7 +330,18 @@ async def create_invitation(
     await db.commit()
     await db.refresh(invitation)
 
-    invite_url = f"{settings.FRONTEND_URL}/join/{invitation.token}"
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if origin:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        if parsed.scheme and parsed.netloc:
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            base_url = origin.rstrip("/")
+        invite_url = f"{base_url}/join/{invitation.token}"
+    else:
+        invite_url = f"{settings.FRONTEND_URL.rstrip('/')}/join/{invitation.token}"
+
     return InviteResponse(
         id=invitation.id,
         workspace_id=invitation.workspace_id,

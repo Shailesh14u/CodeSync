@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Workspace, FileItem, WorkspaceMember, CreateWorkspaceInput } from '../types';
 import { apiService } from '../services/api';
+import { useEditorStore } from './editorStore';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -128,6 +129,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set((state) => ({
         files: state.files.filter((f) => f.id !== fileId),
       }));
+      try {
+        useEditorStore.getState().closeTab(fileId);
+      } catch {}
       return true;
     } catch (err: any) {
       set({ error: err.response?.data?.detail || 'Failed to delete file.' });

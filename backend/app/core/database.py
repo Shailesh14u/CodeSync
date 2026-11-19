@@ -1,4 +1,5 @@
 from typing import AsyncGenerator
+import os
 import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
@@ -9,7 +10,11 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # Normalize database URL for SQLAlchemy asyncpg (especially for Neon and cloud Postgres)
-raw_url = settings.DATABASE_URL
+if settings.APP_ENV == "testing" or os.environ.get("APP_ENV") == "testing":
+    raw_url = os.environ.get("TEST_DATABASE_URL") or "sqlite+aiosqlite:///./test_codesync.db"
+else:
+    raw_url = os.environ.get("DATABASE_URL") or settings.DATABASE_URL
+
 if raw_url.startswith("postgres://"):
     raw_url = raw_url.replace("postgres://", "postgresql+asyncpg://", 1)
 elif raw_url.startswith("postgresql://") and not raw_url.startswith("postgresql+asyncpg://"):
@@ -17,6 +22,7 @@ elif raw_url.startswith("postgresql://") and not raw_url.startswith("postgresql+
 
 if "asyncpg" in raw_url:
     try:
+        import asyncpg  # Check driver availability
         parsed = urllib.parse.urlsplit(raw_url)
         qs = urllib.parse.parse_qs(parsed.query)
         # asyncpg does not accept channel_binding
@@ -26,6 +32,9 @@ if "asyncpg" in raw_url:
             qs["ssl"] = [qs.pop("sslmode")[0]]
         new_query = urllib.parse.urlencode({k: v[0] for k, v in qs.items()})
         db_url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, new_query, parsed.fragment))
+    except ImportError:
+        logger.warning("asyncpg driver not installed in this environment; falling back to SQLite.")
+        db_url = "sqlite+aiosqlite:///./codesync.db"
     except Exception:
         db_url = raw_url
 else:
