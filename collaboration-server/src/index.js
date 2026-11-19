@@ -6,9 +6,15 @@ const Y = require('yjs');
 
 const PORT = parseInt(process.env.PORT || process.env.COLLAB_SERVER_PORT || '1234', 10);
 const SECRET_KEY = process.env.SECRET_KEY || 'codesync-ai-super-secret-key-change-in-production-min-32-chars';
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
-console.log(`[CodeSync AI] Initializing Hocuspocus Collaboration Server on port ${PORT}...`);
+// Ensure BACKEND_URL always has protocol (Render property: host might pass host without https://)
+let rawBackendUrl = (process.env.BACKEND_URL || 'http://localhost:8000').trim();
+if (!rawBackendUrl.startsWith('http://') && !rawBackendUrl.startsWith('https://')) {
+  rawBackendUrl = `https://${rawBackendUrl}`;
+}
+const BACKEND_URL = rawBackendUrl.replace(/\/+$/, '');
+
+console.log(`[CodeSync AI] Initializing Hocuspocus Collaboration Server on port ${PORT}... (Backend: ${BACKEND_URL})`);
 
 const server = Server.configure({
   port: PORT,
@@ -58,6 +64,11 @@ const server = Server.configure({
     if (parts.length < 4) return document;
 
     const fileId = parts[3];
+    const monacoText = document.getText('monaco');
+    if (monacoText.length > 0) {
+      return document;
+    }
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/v1/collaboration/docs/${fileId}`, {
         headers: {
@@ -66,7 +77,6 @@ const server = Server.configure({
       });
       if (res.ok) {
         const docData = await res.json();
-        const monacoText = document.getText('monaco');
 
         if (docData.has_state && docData.state_base64) {
           const binaryBuffer = Buffer.from(docData.state_base64, 'base64');

@@ -54,6 +54,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const activeBindingRef = useRef<MonacoBinding | null>(null);
+  const [isEditorMounted, setIsEditorMounted] = useState(false);
 
   // Per-file collaborative sessions cache to prevent duplicate inserts and reconnects on tab switch
   const sessionsRef = useRef<Map<string, CollabSession>>(new Map());
@@ -125,6 +126,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+    setIsEditorMounted(true);
 
     // Custom keyboard shortcuts always delegating to latest callbacks
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -136,9 +138,9 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
     });
   };
 
-  // Setup / Switch Yjs & Hocuspocus CRDT real-time binding when active file changes
+  // Setup / Switch Yjs & Hocuspocus CRDT real-time binding when active file changes or editor mounts
   useEffect(() => {
-    if (!editorRef.current || !activeFile) return;
+    if (!editorRef.current || !activeFile || !isEditorMounted) return;
 
     const editor = editorRef.current;
     const model = editor.getModel();
@@ -181,8 +183,8 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
           if (activeFileRef.current?.id === fileId) {
             setCollabStatus('connected');
           }
-          // Seed ONLY if document is genuinely empty on server
-          if (yText.length === 0 && initialText) {
+          // Seed ONLY if document is genuinely empty on server and client has initial template
+          if (yText.length === 0 && initialText && initialText.trim().length > 0) {
             yText.insert(0, initialText);
           }
         },
@@ -221,21 +223,12 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
       };
       yText.observe(textObserver);
 
-      // Offline fallback: if after 1500ms still not synced and yText is empty, seed initial text
-      const offlineTimer = setTimeout(() => {
-        const curr = sessionsRef.current.get(fileId);
-        if (curr && !curr.isSynced && yText.length === 0 && initialText) {
-          yText.insert(0, initialText);
-        }
-      }, 1500);
-
       session = {
         ydoc,
         provider,
         yText,
         isSynced: false,
         cleanups: [
-          () => clearTimeout(offlineTimer),
           () => yText.unobserve(textObserver),
           () => {
             if (provider.awareness) {
@@ -289,7 +282,7 @@ export const MonacoEditorPane: React.FC<MonacoEditorPaneProps> = ({
         activeBindingRef.current = null;
       }
     };
-  }, [activeFile?.id, workspaceId, token, user, setCollabStatus, setCollabUsers, updateFileContent]);
+  }, [activeFile?.id, isEditorMounted, workspaceId, token, user, setCollabStatus, setCollabUsers, updateFileContent]);
 
   // Clean up sessions for closed tabs
   useEffect(() => {
