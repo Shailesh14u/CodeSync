@@ -1,0 +1,551 @@
+================================================================================
+                    CODESYNC AI - COMPLETE PROJECT DOCUMENTATION
+              Full-Stack Cloud Collaborative IDE & AI Pair-Programming
+================================================================================
+
+Table of Contents:
+1. Project Summary & Executive Overview
+2. High-Level Architecture (System Design)
+3. Tech Stack Breakdown (Frontend, Backend, Collab Server, Database)
+4. Deep Dive: Core Features & Working Mechanics
+   - 4.1 Real-Time Collaborative Editing (CRDT & Yjs Engine)
+   - 4.2 In-Browser Monaco IDE (VS Code Core)
+   - 4.3 Isolated Multi-Language Code Execution Engine
+   - 4.4 AI Pair-Programming Assistant & Non-Destructive Diff Viewer
+   - 4.5 Version Control & Milestone Snapshots
+   - 4.6 Technical Interview & Automated Assessment Mode
+   - 4.7 Team Chat & Communication
+   - 4.8 Workspaces, RBAC & Token-based Invites
+5. Database Schema & Architecture (Neon PostgreSQL)
+6. Project Directory & File Structure Walkthrough
+7. Deployment Architecture (Vercel, Render, Neon)
+8. Local Development Setup Guide
+9. Technical Interview / Viva Q&A Guide
+
+================================================================================
+1. PROJECT SUMMARY & EXECUTIVE OVERVIEW
+================================================================================
+CodeSync AI is a production-ready, full-stack collaborative Cloud IDE designed for
+remote engineering teams, educators, and technical recruiters. It brings the power
+of desktop IDEs (like VS Code) directly into the browser with Google Docs-like
+real-time peer collaboration, sandboxed code execution across multiple languages,
+milestone snapshot version control, an AI pair-programmer with non-destructive diff
+reviews, and a built-in technical interview mode with automated test-case evaluation.
+
+Key Value Propositions:
+- Zero Setup: Developers can jump into a project with one click via an invite URL
+  without installing compilers, runtimes, or dependencies locally.
+- True Conflict-Free Real-Time Sync: Employs Yjs and Conflict-free Replicated
+  Data Types (CRDTs) to ensure zero merge conflicts, zero text duplication, and
+  instant character-by-character synchronization across any number of concurrent peers.
+- Safe Cloud Code Execution: Sandboxed execution runs untrusted code in isolated
+  environments with CPU, RAM, and time limits while stripping sensitive database
+  and API credentials.
+- AI-Augmented Workflow: Integrated AI helps explain complex algorithms, detect
+  subtle bugs, calculate Big-O time and space complexity, and generate unit tests,
+  presenting changes in a side-by-side diff before any modifications touch the editor.
+
+Production Live URLs:
+- Frontend (Vercel): https://code-sync-blush-eight.vercel.app
+- Backend API (Render): https://codesync-backend-e4lv.onrender.com
+- Collab WebSocket (Render): wss://codesync-collab-dpte.onrender.com
+- Database: Neon Serverless Lakebase PostgreSQL (AWS us-east-2)
+- GitHub Repository: https://github.com/Shailesh14u/CodeSync
+
+================================================================================
+2. HIGH-LEVEL ARCHITECTURE (SYSTEM DESIGN)
+================================================================================
+CodeSync AI follows a modern, distributed 3-tier microservice architecture:
+
+                +-------------------------------------------------+
+                |             Client Web Browser (SPA)            |
+                |   React 18 + TypeScript + Monaco Editor + Yjs   |
+                +------------------------+------------------------+
+                                         |
+               REST / HTTPS (Axios)      |      WebSockets (wss://)
+                                         |
+            +----------------------------v----------------------------+
+            |                                                         |
++-----------v-----------+                                 +-----------v-----------+
+|   Core API Backend    |                                 | Collaboration Server  |
+|   (FastAPI / Python)  |                                 |    (Node.js / Yjs)    |
+| - Authentication      |                                 | - Hocuspocus Server   |
+| - Workspaces & Files  |                                 | - CRDT State Sync     |
+| - Sandbox Execution   |                                 | - Peer Awareness      |
+| - AI Engine & Diff    |                                 | - Cursor Coordinates  |
+| - Snapshots & Tests   |                                 | - Postgres Document   |
++-----------+-----------+                                 +-----------+-----------+
+            |                                                         |
+            |              SQLAlchemy / asyncpg / pg                  |
+            +----------------------------+----------------------------+
+                                         |
+                          +--------------v--------------+
+                          |   Neon Serverless Postgres  |
+                          | (11 Relational DB Tables)   |
+                          +-----------------------------+
+
+Component Responsibilities:
+1. Frontend Web Client (Vercel):
+   - Single Page Application (SPA) providing the user interface.
+   - Mounts Microsoft Monaco Editor inside a resizable 3-pane layout.
+   - Connects to the Collab Server via WebSockets for real-time document updates.
+   - Communicates with the FastAPI Backend over REST for auth, workspaces, AI,
+     code execution, and history.
+
+2. Core Backend Service (Render):
+   - Asynchronous Python ASGI service built on FastAPI.
+   - Enforces Role-Based Access Control (RBAC), JWT authentication, and CORS.
+   - Manages CRUD operations for workspaces, files, and users.
+   - Executes multi-language code inside isolated sandbox runners.
+   - Interfaces with AI providers (Google Gemini 1.5, OpenAI GPT-4o, or offline
+     heuristic engine) and records audit feedback logs.
+
+3. Real-Time Collaboration Server (Render):
+   - Node.js WebSocket service running the Hocuspocus server engine.
+   - Maintains authoritative memory representations of Y.Doc CRDT states.
+   - Handles awareness protocol (who is in the file, active cursor coordinates,
+     selections, color badges).
+   - Debounces and persists binary CRDT document updates back into Neon PostgreSQL.
+
+4. Cloud Database (Neon.tech):
+   - Serverless PostgreSQL database with branch-first architecture.
+   - Stores user profiles, workspace metadata, file trees, execution histories,
+     chat messages, interview challenge evaluations, and version snapshots.
+
+================================================================================
+3. TECH STACK BREAKDOWN
+================================================================================
+
+A. Frontend:
+- Framework: React 18 (with Hooks and Functional Components)
+- Language: TypeScript (strict typing for zero runtime surprises)
+- Build Tool: Vite 5 (instant Hot Module Replacement and optimized Rollup bundles)
+- Styling: Tailwind CSS (custom dark-theme cyber palette: #0B0F19, #111827, #6366F1)
+- Code Editor: Monaco Editor (@monaco-editor/react & monaco-editor) - same engine
+  that powers VS Code desktop.
+- State Management: Zustand (lightweight, decoupled stores: authStore, workspaceStore,
+  editorStore)
+- Real-time Client: Yjs, y-monaco, and @hocuspocus/provider
+- Icons: Lucide React (clean, scalable SVG icons)
+- HTTP Client: Axios (with global JWT interceptors and error handlers)
+
+B. Core Backend:
+- Framework: FastAPI (modern, high-performance async Python web framework)
+- Server: Uvicorn (ASGI web server with uvloop)
+- Database ORM: SQLAlchemy 2.0 (pure async/await patterns with AsyncSession)
+- Database Drivers:
+  - asyncpg: High-performance PostgreSQL async driver for Neon cloud.
+  - aiosqlite: Zero-dependency async SQLite driver for automated local testing.
+- Validation: Pydantic v2 & Pydantic-Settings (data parsing, validation, and env vars)
+- Security: PyJWT (JSON Web Tokens) & Passlib / Bcrypt (secure salted password hashing)
+- Testing: Pytest, pytest-asyncio, AnyIO, and HTTPX AsyncClient
+
+C. Collaboration Server:
+- Runtime: Node.js (v18+)
+- Framework: @hocuspocus/server & ws (WebSocket server)
+- CRDT Core: Yjs (state vectors, binary updates, awareness protocol)
+- Database Driver: pg (node-postgres) with connection pooling
+
+D. Infrastructure & Cloud Hosting:
+- Frontend CDN: Vercel (Global Edge Network, automatic SSL, SPA rewrite routing)
+- Backend Hosting: Render Web Services (Dockerized Python & Node.js environments)
+- Cloud Database: Neon (Lakebase Postgres with SSL pooling on AWS us-east-2)
+
+================================================================================
+4. DEEP DIVE: CORE FEATURES & WORKING MECHANICS
+================================================================================
+
+--------------------------------------------------------------------------------
+4.1 Real-Time Collaborative Editing (CRDT & Yjs Engine)
+--------------------------------------------------------------------------------
+Traditional collaboration tools like Google Docs historically used Operational
+Transformation (OT), which requires a single centralized server to order every
+single keystroke. If two users type at the same time, network latency causes
+conflicts and character jitter.
+
+CodeSync AI uses Conflict-free Replicated Data Types (CRDTs) via Yjs:
+1. Every character inserted in the editor is tagged with a globally unique ID
+   consisting of [client_id, lamport_clock_counter].
+2. Documents are stored as a doubly-linked tree of items.
+3. When User A types "def" and User B types "async" simultaneously:
+   - Both edits are inserted without locking or server arbitration.
+   - The CRDT mathematically guarantees that once both packets reach each client,
+     both editors converge on the exact same character sequence.
+   - Race conditions, text scrambling, and duplicated code are physically impossible.
+4. Peer Presence & Awareness:
+   - Each client periodically transmits cursor coordinates (line and column numbers)
+     and selected ranges over the WebSocket.
+   - The UI renders collaborator presence avatars with unique deterministic colors
+     and labels showing which teammate is active in which file.
+5. Production Normalization:
+   - The collaboration server automatically normalizes hostnames to secure WebSockets
+     (wss://) on production, ensuring instant connection with zero browser security
+     blockers.
+
+--------------------------------------------------------------------------------
+4.2 In-Browser Monaco IDE (VS Code Core)
+--------------------------------------------------------------------------------
+- Full VS Code Experience: CodeSync embeds Microsoft Monaco Editor with complete
+  syntax highlighting for Python, JavaScript, TypeScript, C++, Java, JSON, Markdown,
+  HTML, CSS, and SQL.
+- Custom Dark Aesthetic: Customized to match CodeSync's cyber-neon theme (#0B0F19
+  background, smooth blinking cursor, bracket pair colorization, minimap, and ligatures).
+- Multi-Tab Buffer System:
+  - Users can open, switch, and close multiple files across directories.
+  - Each file retains its own collaborative session cache, ensuring instantaneous
+    tab switching without reconnecting or re-requesting the WebSocket.
+- Debounced Auto-Save:
+  - Every keystroke is saved locally in memory.
+  - A 1200ms debounced background watcher automatically persists dirty buffer states
+    to the Neon database without freezing the UI.
+- Keyboard Shortcuts:
+  - `Ctrl + S`: Instantly save the active file buffer.
+  - `Ctrl + Enter`: Trigger the sandboxed compiler/runner on the active file.
+- Polished Empty State:
+  - If all tabs are closed, a dedicated empty state displays keyboard shortcut tags
+    and tips instead of a blank canvas.
+
+--------------------------------------------------------------------------------
+4.3 Isolated Multi-Language Code Execution Engine
+--------------------------------------------------------------------------------
+Users can run code directly inside the IDE without having local compilers installed.
+1. The execution manager packages the active file and any dependent files into a job.
+2. The code is executed inside an isolated runner (`LocalSandboxRunner` or Docker container).
+3. Hardened Security & Isolation:
+   - Child Environment Sanitization: All sensitive server environment variables
+     (e.g., `DATABASE_URL`, `SECRET_KEY`, `AI_API_KEY`, `REDIS_URL`) are stripped
+     before the user code starts. Untrusted user code cannot inspect server secrets.
+   - Resource Quotas: Memory is capped (e.g., 256MB) and execution times out after
+     a configurable limit (default: 10 seconds).
+   - Infinite Loop Protection: Programs with infinite loops (`while True: pass`)
+     are safely killed with Exit Code 124 (SIGKILL) and a timeout notice.
+4. Supported Languages:
+   - Python: Runs directly with `-u` unbuffered standard output.
+   - JavaScript / Node.js: Executes directly via Node runtime.
+   - C++: Compiles with `g++ -O2 -std=c++20` and executes the compiled binary.
+   - Java: Compiles with `javac` and runs with `java`.
+5. Execution Console Output:
+   - Standard output (stdout) is formatted in clean syntax.
+   - Standard error (stderr) is highlighted in rose/red.
+   - Displays execution duration in milliseconds and memory consumption in MB.
+   - Logs are persisted in the Neon PostgreSQL database for auditing.
+
+--------------------------------------------------------------------------------
+4.4 AI Pair-Programming Assistant & Non-Destructive Diff Viewer
+--------------------------------------------------------------------------------
+CodeSync AI integrates frontier AI models (Google Gemini 1.5, OpenAI GPT-4o, and an
+offline heuristic engine) directly into the right sidebar.
+- Six One-Click Actions:
+  1. Explain: Explains the code step-by-step, explaining design patterns and algorithms.
+  2. Debug: Identifies logical flaws, null pointer risks, edge cases, and syntax bugs.
+  3. Optimize: Refactors code for performance and readability.
+  4. Review: Evaluates clean code standards, naming conventions, and best practices.
+  5. Big-O Complexity: Calculates time complexity (e.g., O(N log N)) and space complexity.
+  6. Unit Tests: Generates test suites (e.g., pytest, jest) covering edge cases.
+- Non-Destructive Diff Viewer:
+  - When the AI generates improved code, it NEVER directly overwrites the editor.
+  - A side-by-side Diff Modal opens (using Monaco's DiffEditor) comparing the
+    Current Buffer (Original) against the AI Suggested Changes.
+  - The user can review insertions (green) and deletions (red), inspect risks and
+    reasoning, and choose to "Accept & Apply Diff" or "Reject Changes".
+  - Accepting diffs immediately propagates to all connected collaborators in real-time.
+
+--------------------------------------------------------------------------------
+4.5 Version Control & Milestone Snapshots
+--------------------------------------------------------------------------------
+Git can be overwhelming for fast-paced coding sessions or interviews. CodeSync AI
+provides an integrated snapshot engine:
+- Capture Snapshot: Saves the state of all files and folders across the entire
+  workspace with a custom name (e.g., "v1.0-milestone") and optional description.
+- Snapshot Inspection: Allows team members to browse past snapshots, preview code
+  files at that specific point in time, and see timestamps and creators.
+- Instant 1-Click Rollback: Clicking "Restore Snapshot" overwrites the current
+  workspace files with the snapshot version, instantly updating open tabs and
+  Monaco buffers for all active collaborators.
+
+--------------------------------------------------------------------------------
+4.6 Technical Interview & Automated Assessment Mode
+--------------------------------------------------------------------------------
+CodeSync AI doubles as an enterprise-grade technical interview platform:
+- Pre-Configured Algorithm Challenges: Comes pre-loaded with challenges (like Two Sum,
+  Reverse Linked List, Binary Tree Traversal) with problem descriptions, input/output
+  specifications, and difficulty ratings.
+- Real-Time Interview Timer: Features a synchronized countdown timer (e.g., 45 minutes)
+  with Pause and Reset controls.
+- Automated Test-Case Evaluation:
+  - Runs candidate code against visible sample test cases and hidden edge-case inputs.
+  - Verifies exact stdout outputs against expected values.
+  - Calculates percentage scores (e.g., 100%, 75%) and records pass/fail status per case.
+- AI Candidate Assessment:
+  - Generates comprehensive recruiter feedback analyzing candidate algorithm efficiency,
+    code readability, edge-case resilience, and final performance.
+
+--------------------------------------------------------------------------------
+4.7 Team Chat & Communication
+--------------------------------------------------------------------------------
+- Integrated in the right sidebar alongside the AI assistant.
+- Team members can discuss logic, share snippets, and coordinate architecture
+  decisions in real-time without leaving the browser.
+- Automatically records timestamps, sender usernames, and auto-scrolls to the newest
+  incoming messages.
+
+--------------------------------------------------------------------------------
+4.8 Workspaces, RBAC & Token-Based Invites
+--------------------------------------------------------------------------------
+- Role-Based Access Control (RBAC):
+  - Owner: Full administrative rights (edit files, delete workspace, generate invites).
+  - Editor: Can create, update, and delete files, run code, and invite others.
+  - Viewer: Read-only access to browse files and observe real-time cursor movements.
+  - Candidate: Specialized role for technical interviewees.
+- Token-Based Invitations:
+  - Generate 7-day cryptographically secure invite tokens with 1 click.
+  - Automatic Origin Resolution: The backend and frontend inspect incoming host
+    headers to guarantee that copied links always use the active domain
+    (e.g., `https://code-sync-blush-eight.vercel.app/join/TOKEN`) rather than localhost.
+  - Unauthenticated Invite Handling: If an invited developer does not have an account,
+    the app remembers the invite token during sign up/login and immediately redirects
+    them into the workspace upon authentication.
+
+================================================================================
+5. DATABASE SCHEMA & ARCHITECTURE (NEON POSTGRESQL)
+================================================================================
+The relational schema comprises 11 tables managed via SQLAlchemy 2.0 with foreign
+key cascades:
+
+1. `users`:
+   - id (UUID PK), email (Unique), username (Unique), hashed_password, full_name,
+     avatar_url, is_active, created_at, updated_at.
+
+2. `workspaces`:
+   - id (UUID PK), name, description, default_language, is_public,
+     owner_id (FK -> users.id CASCADE), created_at, updated_at.
+
+3. `workspace_members`:
+   - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+     user_id (FK -> users.id CASCADE), role ('owner'|'editor'|'viewer'|'candidate'),
+     created_at, updated_at.
+
+4. `invitations`:
+   - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+     token (Unique String), email, role, is_used (Boolean), expires_at, created_at.
+
+5. `files`:
+   - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+     name, path, is_directory (Boolean), parent_id (Self FK -> files.id CASCADE),
+     language, content (Text), size_bytes, created_at, updated_at.
+
+6. `collaboration_documents`:
+   - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+     file_id (FK -> files.id CASCADE Unique), yjs_state (Binary BYTEA),
+     version, created_at, updated_at.
+
+7. `executions`:
+   - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+     user_id (FK -> users.id CASCADE), language, entrypoint,
+     status ('success'|'error'|'timeout'|'running'), exit_code,
+     stdout (Text), stderr (Text), execution_time_ms, memory_used_mb,
+     created_at, updated_at.
+
+8. `ai_request_logs`:
+   - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+     user_id (FK -> users.id CASCADE), action ('explain'|'debug'|'optimize'|'review'|'complexity'|'tests'),
+     language, instruction, diff_accepted (Boolean), created_at.
+
+9. `snapshots`:
+   - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+     created_by_id (FK -> users.id), name, description,
+     files_data (JSON / JSONB structure storing full file trees),
+     file_count, created_at.
+
+10. `interview_sessions`:
+    - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE Unique),
+      interviewer_id (FK -> users.id), candidate_id (FK -> users.id),
+      title, description, difficulty, language, time_limit_minutes,
+      test_cases (JSON structure), status, score, ai_feedback, created_at, updated_at.
+
+11. `messages`:
+    - id (UUID PK), workspace_id (FK -> workspaces.id CASCADE),
+      user_id (FK -> users.id CASCADE), content (Text), created_at.
+
+================================================================================
+6. PROJECT DIRECTORY & FILE STRUCTURE WALKTHROUGH
+================================================================================
+d:\PROJECT\CodeSync\
+│
+├── backend/                             # Core FastAPI Backend
+│   ├── app/
+│   │   ├── api/v1/                      # API Endpoints
+│   │   │   ├── auth.py                  # Register, Login, JWT tokens
+│   │   │   ├── workspaces.py            # Workspaces, Invites, Membership
+│   │   │   ├── files.py                 # File Tree CRUD & language detection
+│   │   │   ├── executions.py            # Code execution sandbox endpoints
+│   │   │   ├── ai.py                    # AI actions, queries, diff feedback
+│   │   │   ├── snapshots.py             # Version history & rollback endpoints
+│   │   │   ├── interviews.py            # Interview challenges & grading
+│   │   │   ├── messages.py              # Team chat endpoints
+│   │   │   ├── health.py                # System health check endpoints
+│   │   │   └── router.py                # Unified v1 router aggregation
+│   │   ├── core/                        # Infrastructure & Core Config
+│   │   │   ├── config.py                # Pydantic BaseSettings & env resolution
+│   │   │   ├── database.py              # SQLAlchemy asyncpg engine & pooling
+│   │   │   ├── security.py              # Password hashing & JWT generation
+│   │   │   └── dependencies.py          # FastAPI dependencies (auth, permissions)
+│   │   ├── models/                      # SQLAlchemy ORM Models (11 tables)
+│   │   ├── schemas/                     # Pydantic Data Validation Schemas
+│   │   ├── services/                    # Business Logic Layer
+│   │   │   ├── ai/                      # Gemini, OpenAI, & Heuristic engines
+│   │   │   └── execution/               # Multi-language sandbox runners
+│   │   └── main.py                      # FastAPI app instance, CORS & lifespan
+│   ├── tests/                           # Complete Pytest Async Suite (9 suites)
+│   └── requirements.txt                 # Backend Python dependencies
+│
+├── collaboration-server/                # Real-Time WebSocket Microservice
+│   ├── src/
+│   │   └── index.js                     # Hocuspocus server, Yjs CRDT engine, WS
+│   └── package.json                     # Collab dependencies
+│
+├── frontend/                            # React 18 + Vite SPA
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── auth/                    # Protected route wrappers
+│   │   │   ├── editor/                  # Monaco IDE Components
+│   │   │   │   ├── MonacoEditorPane.tsx # Monaco canvas & Yjs binding
+│   │   │   │   ├── EditorToolbar.tsx    # Run, Save, Share, History header
+│   │   │   │   ├── EditorTabs.tsx       # File tabs strip
+│   │   │   │   ├── FileExplorer.tsx     # Directory tree & new file dialogs
+│   │   │   │   ├── BottomPanel.tsx      # Terminal stdout & runs history
+│   │   │   │   ├── RightSidebar.tsx     # AI Assistant, Chat & Members tabs
+│   │   │   │   ├── DiffViewerModal.tsx  # Side-by-side Monaco diff modal
+│   │   │   │   ├── VersionHistoryModal.tsx # Snapshot capture & restore
+│   │   │   │   └── InterviewModeModal.tsx  # Timed challenges & test scoring
+│   │   │   ├── layout/                  # Navbar, Footer, Layout shells
+│   │   │   └── ui/                      # Reusable components (Button, Modal, etc.)
+│   │   ├── pages/                       # Route Pages
+│   │   │   ├── LandingPage.tsx          # Marketing page with live demos
+│   │   │   ├── LoginPage.tsx            # Sign in with invite token preservation
+│   │   │   ├── RegisterPage.tsx         # Sign up with invite token preservation
+│   │   │   ├── DashboardPage.tsx        # User workspaces & session creation
+│   │   │   ├── WorkspacePage.tsx        # The full Cloud IDE workspace view
+│   │   │   └── JoinInvitePage.tsx       # 1-click invite acceptance flow
+│   │   ├── services/                    # Axios API client services
+│   │   ├── stores/                      # Zustand state management stores
+│   │   ├── types/                       # Shared TypeScript interfaces
+│   │   ├── App.tsx                      # Main routing & application shell
+│   │   └── main.tsx                     # React entrypoint
+│   └── vite.config.ts                   # Vite build configuration
+│
+├── render.yaml                          # Render Blueprint for automated deployments
+└── README.md                            # High-level overview & setup instructions
+
+================================================================================
+7. DEPLOYMENT ARCHITECTURE
+================================================================================
+CodeSync AI is deployed using continuous deployment (CI/CD) directly from the
+GitHub `main` branch:
+
+1. Frontend (Vercel):
+   - Root Directory: `frontend`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+   - Environment Variables:
+     - `VITE_API_URL`: https://codesync-backend-e4lv.onrender.com
+     - `VITE_COLLAB_WS_URL`: wss://codesync-collab-dpte.onrender.com
+
+2. Core Backend (Render):
+   - Root Directory: `backend`
+   - Runtime: Python 3
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - Environment Variables:
+     - `DATABASE_URL`: postgresql://codesync_user:***@ep-***.us-east-2.aws.neon.tech/neondb?sslmode=require
+     - `SECRET_KEY`: codesync-production-secret-key-32-chars-long
+     - `APP_ENV`: production
+     - `DEBUG`: False
+     - `AI_PROVIDER`: gemini
+
+3. Collaboration Server (Render):
+   - Root Directory: `collaboration-server`
+   - Runtime: Node
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+   - Environment Variables:
+     - `DATABASE_URL`: (Same Neon PostgreSQL connection string)
+     - `BACKEND_URL`: https://codesync-backend-e4lv.onrender.com
+     - `SECRET_KEY`: codesync-production-secret-key-32-chars-long
+
+================================================================================
+8. LOCAL DEVELOPMENT SETUP GUIDE
+================================================================================
+Prerequisites:
+- Node.js v18+ and npm
+- Python 3.10+
+- Git
+
+Step 1: Clone Repository:
+   git clone https://github.com/Shailesh14u/CodeSync.git
+   cd CodeSync
+
+Step 2: Start Backend API:
+   cd backend
+   python -m venv venv
+   # Windows:
+   venv\Scripts\activate
+   # Linux/macOS:
+   source venv/bin/activate
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload --port 8000
+
+Step 3: Start Collaboration Server:
+   cd ../collaboration-server
+   npm install
+   npm start
+
+Step 4: Start Frontend Client:
+   cd ../frontend
+   npm install
+   npm run dev
+
+Open your browser at `http://localhost:5173` to start coding!
+
+================================================================================
+9. TECHNICAL INTERVIEW / VIVA Q&A GUIDE
+================================================================================
+Q1: Why did you choose CRDTs (Conflict-free Replicated Data Types) over Operational
+    Transformation (OT)?
+A1: OT relies on a centralized server to serialize and transform every operation
+    sequentially. In high-latency or distributed networks, OT introduces lag and
+    complex edge cases. CRDTs (via Yjs) allow every peer to insert text locally
+    without waiting for server confirmation. Because CRDT operations are commutative
+    and idempotent, all clients are mathematically guaranteed to converge to the
+    exact same state regardless of the order in which packets arrive.
+
+Q2: How do you prevent untrusted code from compromising the backend server during execution?
+A2: We use an isolated sandbox architecture. Before launching the subprocess, all
+    environment variables containing secrets (database URLs, JWT keys, AI tokens)
+    are purged from the child environment. Additionally, memory is capped (256MB),
+    and a strict timeout (10 seconds) terminates runaway infinite loops with SIGKILL.
+
+Q3: Why use Monaco Editor instead of simple textarea or CodeMirror?
+A3: Monaco Editor is the actual open-source editor core that powers VS Code. It
+    provides professional language services, IntelliSense autocompletion, bracket
+    matching, minimap, syntax tokenization, and native diff editing right out of
+    the box, giving users a true desktop IDE experience in the web.
+
+Q4: How do you handle database scaling for concurrent collaboration documents?
+A4: Neon Serverless PostgreSQL decouples compute from storage, allowing the database
+    to autoscale instantly during peak traffic. Furthermore, the collaboration
+    server does not write to Postgres on every single keystroke; it maintains the
+    active Y.Doc in memory and debounces writes, updating the database only when
+    users pause typing or when documents are unloaded.
+
+Q5: What was the most challenging bug you encountered and resolved?
+A5: The collaborative editor mount race condition. When Monaco Editor was mounting
+    asynchronously, an eager React useEffect would try to bind the editor before
+    Monaco initialized, causing the WebSocket to stay disconnected until a file tab
+    was switched. We solved this by binding directly to the Monaco editor mount
+    lifecycle (`OnMount`) and maintaining per-file collaborative session caches,
+    ensuring instant connection without race conditions or text duplication.
+
+================================================================================
+                            END OF DOCUMENTATION
+================================================================================
