@@ -110,6 +110,16 @@ export const apiService = {
     return response.data;
   },
 
+  leaveWorkspace: async (workspaceId: string): Promise<{ status: string; message: string }> => {
+    const response = await apiClient.post<{ status: string; message: string }>(`/workspaces/${workspaceId}/leave`);
+    return response.data;
+  },
+
+  removeMember: async (workspaceId: string, userId: string): Promise<{ status: string; message: string }> => {
+    const response = await apiClient.delete<{ status: string; message: string }>(`/workspaces/${workspaceId}/members/${userId}`);
+    return response.data;
+  },
+
   // File Management
   getFiles: async (workspaceId: string): Promise<FileItem[]> => {
     const response = await apiClient.get<FileItem[]>(`/workspaces/${workspaceId}/files`);

@@ -14,7 +14,8 @@ import {
   Check, 
   Copy,
   Layers,
-  Code2
+  Code2,
+  LogOut
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -127,6 +128,17 @@ export const DashboardPage: React.FC = () => {
   const handleDeleteWorkspace = async (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to permanently delete workspace "${name}"? This action cannot be undone.`)) {
       await deleteWorkspace(id);
+    }
+  };
+
+  const handleLeaveWorkspace = async (id: string, name: string) => {
+    if (window.confirm(`Are you sure you want to leave workspace "${name}"?\n\nThe workspace invitation code will be rotated immediately.`)) {
+      try {
+        await apiService.leaveWorkspace(id);
+        fetchWorkspaces();
+      } catch (err: any) {
+        alert(err.response?.data?.detail || 'Failed to leave workspace.');
+      }
     }
   };
 
@@ -329,7 +341,7 @@ export const DashboardPage: React.FC = () => {
                       <Share2 className="w-3.5 h-3.5 text-accent-secondary" />
                     </Button>
 
-                    {ws.role === 'owner' && (
+                    {ws.role === 'owner' ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -338,6 +350,16 @@ export const DashboardPage: React.FC = () => {
                         title="Delete Workspace"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        onClick={() => handleLeaveWorkspace(ws.id, ws.name)}
+                        title="Leave Workspace"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
                       </Button>
                     )}
                   </div>

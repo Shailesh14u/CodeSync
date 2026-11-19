@@ -85,7 +85,7 @@ export const WorkspacePage: React.FC = () => {
   } = useEditorStore();
 
   const { files, fetchFiles } = useWorkspaceStore();
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
 
   const activeFile = openTabs.find((t) => t.id === activeFileId) || null;
 
@@ -235,6 +235,36 @@ export const WorkspacePage: React.FC = () => {
       resetEditor();
     };
   }, [loadWorkspaceData, resetEditor]);
+
+  // Refresh members list and verify current user is still an authorized member
+  const refreshMembers = useCallback(async () => {
+    if (!workspaceId) return;
+    try {
+      const membersData = await apiService.getWorkspaceMembers(workspaceId);
+      setMembers(membersData);
+
+      // If current user is not the owner and has been kicked/removed
+      if (user && workspace && workspace.owner_id !== user.id) {
+        const isStillMember = membersData.some((m) => m.user_id === user.id);
+        if (!isStillMember) {
+          alert('You have been removed from this workspace by the owner.');
+          navigate('/dashboard', { replace: true });
+        }
+      }
+    } catch (err: any) {
+      if (err.response?.status === 403 || err.response?.status === 404 || err.response?.status === 401) {
+        alert('You no longer have access to this workspace.');
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [workspaceId, user, workspace, navigate]);
+
+  // Periodic membership polling (every 4 seconds) to ensure kicked users get immediately disconnected
+  useEffect(() => {
+    if (!workspaceId || !workspace) return;
+    const interval = setInterval(refreshMembers, 4000);
+    return () => clearInterval(interval);
+  }, [workspaceId, workspace, refreshMembers]);
 
   // 2. Perform Save Action (Internal & Manual)
   const saveActiveFile = useCallback(async () => {
@@ -579,7 +609,12 @@ export const WorkspacePage: React.FC = () => {
             </div>
 
             <div style={{ width: rightWidth }} className="h-full shrink-0 flex flex-col overflow-hidden">
-              <RightSidebar members={members} workspaceId={workspaceId} />
+              <RightSidebar
+                members={members}
+                workspaceId={workspaceId}
+                onRefreshMembers={refreshMembers}
+                currentWorkspace={workspace}
+              />
             </div>
           </>
         )}

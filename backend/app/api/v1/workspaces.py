@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, delete
+from sqlalchemy import select, func, and_, delete, update
 from datetime import datetime, timezone, timedelta
 from typing import List
 import uuid
@@ -429,3 +429,86 @@ async def list_members(
         )
         for wm, user in rows
     ]
+
+async def rotate_workspace_invitations(workspace_id: str, db: AsyncSession):
+    """Invalidates all unused invitation tokens for this workspace to prevent kicked/left members from re-joining."""
+    await db.execute(
+        update(Invitation)
+        .where(Invitation.workspace_id == workspace_id, Invitation.is_used == False)
+        .values(is_used=True)
+    )
+    fresh_invite = Invitation(
+        workspace_id=workspace_id,
+        token=uuid.uuid4().hex[:12].upper(),
+        role="editor",
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        is_used=False
+    )
+    db.add(fresh_invite)
+
+@router.post("/{workspace_id}/leave", summary="Leave Workspace")
+async def leave_workspace(
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Allows a joined member to leave the workspace. Owners cannot leave."""
+    ws = await db.get(Workspace, workspace_id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    if ws.owner_id == current_user.id:
+        raise HTTPException(
+            status_code=400,
+            detail="The workspace owner cannot leave the workspace. Delete the workspace if no longer needed."
+        )
+
+    member_query = select(WorkspaceMember).where(
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.user_id == current_user.id
+    )
+    res = await db.execute(member_query)
+    member = res.scalar_one_or_none()
+
+    if not member:
+        raise HTTPException(status_code=400, detail="You are not a member of this workspace")
+
+    await db.delete(member)
+    await rotate_workspace_invitations(workspace_id, db)
+    await db.commit()
+
+    return {"status": "success", "message": "Successfully left the workspace and invitation tokens rotated."}
+
+@router.delete("/{workspace_id}/members/{user_id}", summary="Kick / Remove Member from Workspace")
+async def kick_member(
+    workspace_id: str,
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Only the workspace owner can kick a member. Also immediately rotates invitation codes."""
+    ws = await db.get(Workspace, workspace_id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    if ws.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the workspace owner can remove members")
+
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot remove yourself as the workspace owner")
+
+    member_query = select(WorkspaceMember).where(
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.user_id == user_id
+    )
+    res = await db.execute(member_query)
+    member = res.scalar_one_or_none()
+
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found in this workspace")
+
+    await db.delete(member)
+    await rotate_workspace_invitations(workspace_id, db)
+    await db.commit()
+
+    return {"status": "success", "message": "Member removed successfully and invitation codes rotated."}

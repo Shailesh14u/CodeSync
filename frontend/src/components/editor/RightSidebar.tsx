@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   MessageSquare,
@@ -19,9 +19,13 @@ import {
   CheckCircle2,
   Settings,
   Check,
+  UserMinus,
+  LogOut,
+  Shield,
 } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
-import { WorkspaceMember } from '../../types';
+import { useAuthStore } from '../../stores/authStore';
+import { WorkspaceMember, Workspace } from '../../types';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { apiService, AIResponse, ChatMessage } from '../../services/api';
@@ -30,14 +34,23 @@ import { DiffViewerModal } from './DiffViewerModal';
 export interface RightSidebarProps {
   members: WorkspaceMember[];
   workspaceId?: string;
+  onRefreshMembers?: () => void;
+  currentWorkspace?: Workspace | null;
 }
 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
   members,
   workspaceId: propWorkspaceId,
+  onRefreshMembers,
+  currentWorkspace,
 }) => {
   const { id: paramWorkspaceId } = useParams<{ id: string }>();
   const workspaceId = propWorkspaceId || paramWorkspaceId || '';
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+
+  const [isRemoving, setIsRemoving] = useState<string | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   const {
     isRightSidebarOpen,
@@ -131,8 +144,6 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
     }
   };
 
-  if (!isRightSidebarOpen) return null;
-
   const activeFile = openTabs.find((f) => f.id === activeFileId);
   const activeCode = (activeFileId && fileContents[activeFileId] !== undefined)
     ? fileContents[activeFileId]
@@ -180,6 +191,47 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
     aiResponse?.suggested_code &&
     aiResponse.suggested_code.trim() !== (activeCode || '').trim()
   );
+
+  const isCurrentUserOwner =
+    currentWorkspace?.owner_id === user?.id ||
+    members.some((m) => m.user_id === user?.id && m.role === 'owner');
+
+  const handleKickMember = async (targetMember: WorkspaceMember) => {
+    if (!workspaceId) return;
+    const confirm = window.confirm(
+      `Are you sure you want to remove "${targetMember.username}" from this workspace?\n\nThe workspace invitation code will be rotated immediately so they cannot re-join with the old link.`
+    );
+    if (!confirm) return;
+
+    setIsRemoving(targetMember.user_id);
+    try {
+      await apiService.removeMember(workspaceId, targetMember.user_id);
+      if (onRefreshMembers) {
+        onRefreshMembers();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to remove member.');
+    } finally {
+      setIsRemoving(null);
+    }
+  };
+
+  const handleLeaveWorkspace = async () => {
+    if (!workspaceId) return;
+    const confirm = window.confirm(
+      'Are you sure you want to leave this workspace?\n\nYou will lose access and need a new invitation link from the owner to re-join.'
+    );
+    if (!confirm) return;
+
+    setIsLeaving(true);
+    try {
+      await apiService.leaveWorkspace(workspaceId);
+      navigate('/dashboard', { replace: true });
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to leave workspace.');
+      setIsLeaving(false);
+    }
+  };
 
   if (!isRightSidebarOpen) return null;
 
@@ -569,30 +621,96 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
           {/* Collaborators Tab */}
           {activeRightTab === 'collaborators' && (
-            <div className="space-y-3">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-content-muted font-mono">
-                Active Members
-              </span>
-              <div className="space-y-1.5">
-                {members.map((member) => (
-                  <div
-                    key={member.id}
-                    className="p-2 rounded-lg bg-background-secondary border border-border-subtle flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-accent-primary/20 text-accent-primary flex items-center justify-center font-bold text-[10px]">
-                        {member.username.charAt(0).toUpperCase()}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-content-muted font-mono flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-accent-primary" />
+                  Workspace Members ({members.length})
+                </span>
+                {isCurrentUserOwner && (
+                  <Badge variant="accent" size="sm" className="text-[10px] flex items-center gap-1">
+                    <Shield className="w-2.5 h-2.5" />
+                    Owner
+                  </Badge>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {members.map((member) => {
+                  const isSelf = member.user_id === user?.id;
+                  const isMemberOwner = member.role === 'owner';
+
+                  return (
+                    <div
+                      key={member.id}
+                      className="p-2.5 rounded-lg bg-background-secondary border border-border-subtle flex items-center justify-between text-xs hover:border-border-focus/40 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-accent-primary/20 text-accent-primary flex items-center justify-center font-bold text-xs shrink-0 border border-accent-primary/30">
+                          {member.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-content-main truncate flex items-center gap-1.5">
+                            <span>{member.username}</span>
+                            {isSelf && (
+                              <span className="text-[9px] px-1 py-0.2 bg-accent-primary/20 text-accent-primary rounded font-mono">
+                                You
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-content-muted capitalize flex items-center gap-1">
+                            {isMemberOwner ? (
+                              <span className="text-amber-400 flex items-center gap-0.5">
+                                <Shield className="w-2.5 h-2.5" /> Workspace Owner
+                              </span>
+                            ) : (
+                              <span>Collaborator ({member.role})</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium text-content-main">{member.username}</div>
-                        <div className="text-[10px] text-content-muted capitalize">{member.role}</div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Owner Kick Button */}
+                        {isCurrentUserOwner && !isMemberOwner && !isSelf && (
+                          <button
+                            onClick={() => handleKickMember(member)}
+                            disabled={isRemoving === member.user_id}
+                            title={`Kick ${member.username} & rotate invitation link`}
+                            className="p-1.5 rounded-md bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 border border-rose-500/20 transition-all text-[11px] flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <UserMinus className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Kick</span>
+                          </button>
+                        )}
+
+                        <Badge variant="success" size="sm" className="text-[10px]">
+                          Online
+                        </Badge>
                       </div>
                     </div>
-                    <Badge variant="success" size="sm" className="text-[10px]">
-                      Online
-                    </Badge>
-                  </div>
-                ))}
+                  );
+                })}
+              </div>
+
+              {/* Leave Workspace Button for Non-Owners */}
+              {!isCurrentUserOwner && (
+                <div className="pt-3 border-t border-border-subtle">
+                  <button
+                    onClick={handleLeaveWorkspace}
+                    disabled={isLeaving}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 hover:text-rose-300 transition-colors text-xs font-medium disabled:opacity-50"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>{isLeaving ? 'Leaving Workspace...' : 'Leave Workspace'}</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Security Note */}
+              <div className="p-2.5 rounded-lg bg-background-panel border border-border-subtle text-[10px] text-content-muted leading-relaxed">
+                <span className="font-semibold text-content-secondary block mb-0.5">🔒 Auto-Rotating Security:</span>
+                Removing a member or leaving automatically invalidates prior invitation codes and issues a fresh one to prevent unauthorized re-access.
               </div>
             </div>
           )}
