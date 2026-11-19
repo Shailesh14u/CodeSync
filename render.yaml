@@ -1,0 +1,42 @@
+services:
+  # 1. FastAPI Backend API
+  - type: web
+    name: codesync-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: AI_PROVIDER
+        value: gemini
+      - key: AI_API_KEY
+        sync: false
+
+  # 2. Hocuspocus Real-time Collaboration WebSocket Server
+  - type: web
+    name: codesync-collab
+    runtime: node
+    rootDir: collaboration-server
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: codesync-backend
+          envVarKey: SECRET_KEY
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: codesync-backend
+          property: host
