@@ -330,9 +330,6 @@ export const WorkspacePage: React.FC = () => {
       return;
     }
 
-    const stdinToSend = overrideStdin !== undefined ? overrideStdin : customStdin;
-    setIsRunningCode(true);
-
     // Auto-detect real execution language from file extension
     const lowerName = currentActiveFile.name.toLowerCase();
     let runLanguage = currentActiveFile.language;
@@ -341,6 +338,24 @@ export const WorkspacePage: React.FC = () => {
     else if (lowerName.endsWith('.ts') || lowerName.endsWith('.tsx')) runLanguage = 'typescript';
     else if (lowerName.endsWith('.cpp') || lowerName.endsWith('.c') || lowerName.endsWith('.h')) runLanguage = 'cpp';
     else if (lowerName.endsWith('.java')) runLanguage = 'java';
+
+    // Only send stdin if the program code actually uses user input functions or override was provided
+    const activeFileCode = (currentActiveFile.id && editorState.fileContents[currentActiveFile.id] !== undefined)
+      ? editorState.fileContents[currentActiveFile.id]
+      : currentActiveFile.content;
+
+    const codeNeedsInput = Boolean(
+      (runLanguage === 'python' && (/\binput\s*\(/.test(activeFileCode) || /sys\.stdin/.test(activeFileCode))) ||
+      (/\bcin\s*>>/.test(activeFileCode) || /\bscanf\s*\(/.test(activeFileCode) || /\bgetline\s*\(/.test(activeFileCode)) ||
+      (/\bScanner\s*\(/.test(activeFileCode) || /\bSystem\.in\b/.test(activeFileCode)) ||
+      (/\breadline\b/.test(activeFileCode) || /process\.stdin/.test(activeFileCode) || /\bprompt\s*\(/.test(activeFileCode))
+    );
+
+    const stdinToSend = overrideStdin !== undefined
+      ? overrideStdin
+      : (codeNeedsInput ? customStdin : '');
+
+    setIsRunningCode(true);
 
     // Auto-save active file if dirty before executing
     if (editorState.dirtyFiles[currentActiveFile.id]) {

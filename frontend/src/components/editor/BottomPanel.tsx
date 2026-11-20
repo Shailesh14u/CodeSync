@@ -27,6 +27,7 @@ export interface BottomPanelProps {
   onStdinChange?: (value: string) => void;
   onRunCodeWithStdin?: (overrideStdin?: string) => void;
   isRunning?: boolean;
+  requiresInput?: boolean;
 }
 
 export const BottomPanel: React.FC<BottomPanelProps> = ({
@@ -37,26 +38,60 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
   onStdinChange,
   onRunCodeWithStdin,
   isRunning = false,
+  requiresInput,
 }) => {
   const { 
     isBottomPanelOpen, 
     toggleBottomPanel, 
     activeBottomTab, 
-    setActiveBottomTab 
+    setActiveBottomTab,
+    openTabs,
+    activeFileId,
+    fileContents
   } = useEditorStore();
 
   const [quickInput, setQuickInput] = useState('');
   const logsEndRef = React.useRef<HTMLDivElement>(null);
+
+  const activeFile = openTabs.find((t) => t.id === activeFileId);
+  const activeCode = (activeFileId && fileContents[activeFileId] !== undefined)
+    ? fileContents[activeFileId]
+    : (activeFile?.content || '');
+
+  const hasEofError = logs.some((l) => 
+    l.type === 'error' && (l.text.includes('EOFError') || l.text.includes('EOF when reading a line'))
+  );
+
+  // Dynamically detect whether active code requires standard input
+  const codeNeedsInput = React.useMemo(() => {
+    if (requiresInput !== undefined) return requiresInput;
+    if (hasEofError) return true;
+    if (!activeCode) return false;
+
+    // Python: input(...) or sys.stdin
+    if (/\binput\s*\(/.test(activeCode) || /sys\.stdin/.test(activeCode)) return true;
+    // C / C++: cin >> or scanf(...) or getline(...) or getchar(...)
+    if (/\bcin\s*>>/.test(activeCode) || /\bscanf\s*\(/.test(activeCode) || /\bgetline\s*\(/.test(activeCode) || /\bgetchar\s*\(/.test(activeCode)) return true;
+    // Java: Scanner(...) or System.in or BufferedReader
+    if (/\bScanner\s*\(/.test(activeCode) || /\bSystem\.in\b/.test(activeCode) || /\bBufferedReader\b/.test(activeCode)) return true;
+    // JavaScript / Node: readline or process.stdin or prompt(...)
+    if (/\breadline\b/.test(activeCode) || /process\.stdin/.test(activeCode) || /\bprompt\s*\(/.test(activeCode)) return true;
+
+    return false;
+  }, [requiresInput, hasEofError, activeCode]);
+
+  // If code does NOT need input and the active tab is 'input', switch back to 'output'
+  React.useEffect(() => {
+    if (!codeNeedsInput && activeBottomTab === 'input') {
+      setActiveBottomTab('output');
+    }
+  }, [codeNeedsInput, activeBottomTab, setActiveBottomTab]);
 
   React.useEffect(() => {
     if (activeBottomTab === 'output') {
       logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [logs, activeBottomTab]);
-
-  const hasEofError = logs.some((l) => 
-    l.type === 'error' && (l.text.includes('EOFError') || l.text.includes('EOF when reading a line'))
-  );
 
   const handleQuickRun = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -96,20 +131,22 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
             Output Console
           </button>
 
-          <button
-            onClick={() => setActiveBottomTab('input')}
-            className={`px-2.5 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors relative ${
-              activeBottomTab === 'input'
-                ? 'text-emerald-400 bg-background-panel font-medium'
-                : 'text-content-secondary hover:text-content-main'
-            }`}
-          >
-            <Keyboard className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Input (stdin)</span>
-            {hasStdinContent && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Stdin has input data" />
-            )}
-          </button>
+          {codeNeedsInput && (
+            <button
+              onClick={() => setActiveBottomTab('input')}
+              className={`px-2.5 py-1 text-xs font-mono rounded flex items-center gap-1.5 transition-colors relative ${
+                activeBottomTab === 'input'
+                  ? 'text-emerald-400 bg-background-panel font-medium'
+                  : 'text-content-secondary hover:text-content-main'
+              }`}
+            >
+              <Keyboard className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Input (stdin)</span>
+              {hasStdinContent && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Stdin has input data" />
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setActiveBottomTab('terminal')}
@@ -209,35 +246,37 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
               <div ref={logsEndRef} />
             </div>
 
-            {/* Quick Interactive Stdin Prompt Bar */}
-            <form onSubmit={handleQuickRun} className="mt-2 pt-2 border-t border-border-subtle flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1 text-[11px] text-content-muted font-mono shrink-0">
-                <CornerDownLeft className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-semibold text-content-secondary">stdin:</span>
-              </div>
-              <input
-                type="text"
-                value={quickInput}
-                onChange={(e) => setQuickInput(e.target.value)}
-                placeholder={hasStdinContent ? `Current: "${customStdin.slice(0, 30)}${customStdin.length > 30 ? '...' : ''}" (Type new value to run)` : 'Type program input (e.g. Shailesh) and press Enter to Run...'}
-                className="flex-1 bg-background-panel border border-border-subtle rounded-md px-2.5 py-1.5 text-xs text-content-main font-mono outline-none focus:border-emerald-500 transition-colors"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                disabled={isRunning}
-                className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 shrink-0"
-              >
-                <Play className="w-3 h-3 fill-current mr-1" />
-                <span>{isRunning ? 'Running...' : 'Run with Input'}</span>
-              </Button>
-            </form>
+            {/* Quick Interactive Stdin Prompt Bar (Only shown if code requires user input) */}
+            {codeNeedsInput && (
+              <form onSubmit={handleQuickRun} className="mt-2 pt-2 border-t border-border-subtle flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1 text-[11px] text-content-muted font-mono shrink-0">
+                  <CornerDownLeft className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="font-semibold text-content-secondary">stdin:</span>
+                </div>
+                <input
+                  type="text"
+                  value={quickInput}
+                  onChange={(e) => setQuickInput(e.target.value)}
+                  placeholder={hasStdinContent ? `Current: "${customStdin.slice(0, 30)}${customStdin.length > 30 ? '...' : ''}" (Type new value to run)` : 'Type program input (e.g. Shailesh) and press Enter to Run...'}
+                  className="flex-1 bg-background-panel border border-border-subtle rounded-md px-2.5 py-1.5 text-xs text-content-main font-mono outline-none focus:border-emerald-500 transition-colors"
+                />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isRunning}
+                  className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 shrink-0"
+                >
+                  <Play className="w-3 h-3 fill-current mr-1" />
+                  <span>{isRunning ? 'Running...' : 'Run with Input'}</span>
+                </Button>
+              </form>
+            )}
           </div>
         )}
 
-        {/* Input (stdin) Tab */}
-        {activeBottomTab === 'input' && (
+        {/* Input (stdin) Tab (Only shown if code requires user input) */}
+        {activeBottomTab === 'input' && codeNeedsInput && (
           <div className="flex-1 flex flex-col p-3 overflow-hidden space-y-2">
             <div className="flex items-center justify-between text-xs text-content-muted shrink-0">
               <div className="flex items-center gap-2">
