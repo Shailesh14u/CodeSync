@@ -17,7 +17,7 @@ interface EditorState {
   isRightSidebarOpen: boolean;
   isBottomPanelOpen: boolean;
   activeRightTab: 'ai' | 'chat' | 'collaborators';
-  activeBottomTab: 'terminal' | 'output' | 'problems';
+  activeBottomTab: 'terminal' | 'output' | 'input' | 'problems';
 
   // Caret / Cursor Name Tag Toggle
   showCaretBadges: boolean;
@@ -36,7 +36,7 @@ interface EditorState {
   toggleRightSidebar: () => void;
   toggleBottomPanel: () => void;
   setActiveRightTab: (tab: 'ai' | 'chat' | 'collaborators') => void;
-  setActiveBottomTab: (tab: 'terminal' | 'output' | 'problems') => void;
+  setActiveBottomTab: (tab: 'terminal' | 'output' | 'input' | 'problems') => void;
   resetEditor: () => void;
 
   // Active Editor Programmatic Content Application (e.g. AI Diff apply, snapshot restore)

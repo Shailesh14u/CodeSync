@@ -141,7 +141,11 @@ class LocalSandboxRunner(BaseRunner):
                 env=clean_env
             )
 
-            stdin_bytes = job.stdin.encode("utf-8") if job.stdin else None
+            if job.stdin:
+                stdin_text = job.stdin if job.stdin.endswith("\n") else job.stdin + "\n"
+                stdin_bytes = stdin_text.encode("utf-8")
+            else:
+                stdin_bytes = None
 
             try:
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
@@ -152,6 +156,9 @@ class LocalSandboxRunner(BaseRunner):
                 stderr_str = stderr_bytes.decode("utf-8", errors="replace")
                 exit_code = proc.returncode if proc.returncode is not None else 0
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+
+                if not job.stdin and "EOFError: EOF when reading a line" in stderr_str:
+                    stderr_str += "\n[CodeSync Hint] input() failed because no standard input was provided. Enter your input in the 'Input (stdin)' panel below and click Run."
 
                 return ExecutionResult(
                     status="success" if exit_code == 0 else "error",

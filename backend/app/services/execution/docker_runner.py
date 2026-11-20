@@ -53,7 +53,11 @@ class DockerRunner(BaseRunner):
                 stderr=asyncio.subprocess.PIPE
             )
 
-            stdin_bytes = job.stdin.encode("utf-8") if job.stdin else None
+            if job.stdin:
+                stdin_text = job.stdin if job.stdin.endswith("\n") else job.stdin + "\n"
+                stdin_bytes = stdin_text.encode("utf-8")
+            else:
+                stdin_bytes = None
 
             try:
                 stdout_bytes, stderr_bytes = await asyncio.wait_for(
@@ -66,20 +70,26 @@ class DockerRunner(BaseRunner):
                 # Parse JSON output from container runner script
                 try:
                     parsed = json.loads(raw_out)
+                    err_msg = parsed.get("stderr", raw_err)
+                    if not job.stdin and "EOFError: EOF when reading a line" in err_msg:
+                        err_msg += "\n[CodeSync Hint] input() failed because no standard input (stdin) was provided. Enter your input in the 'Input (stdin)' panel below and click Run."
                     return ExecutionResult(
                         status=parsed.get("status", "success"),
                         exit_code=parsed.get("exit_code", 0),
                         stdout=parsed.get("stdout", ""),
-                        stderr=parsed.get("stderr", raw_err),
+                        stderr=err_msg,
                         execution_time_ms=parsed.get("execution_time_ms", int((time.perf_counter() - start_time) * 1000)),
                         memory_used_mb=parsed.get("memory_used_mb", 14.5)
                     )
                 except Exception:
+                    err_msg = raw_err
+                    if not job.stdin and "EOFError: EOF when reading a line" in err_msg:
+                        err_msg += "\n[CodeSync Hint] input() failed because no standard input (stdin) was provided. Enter your input in the 'Input (stdin)' panel below and click Run."
                     return ExecutionResult(
                         status="success" if proc.returncode == 0 else "error",
                         exit_code=proc.returncode or 0,
                         stdout=raw_out,
-                        stderr=raw_err,
+                        stderr=err_msg,
                         execution_time_ms=int((time.perf_counter() - start_time) * 1000),
                         memory_used_mb=14.5
                     )

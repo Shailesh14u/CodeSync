@@ -31,6 +31,7 @@ export interface EditorToolbarProps {
   onRunCode: () => void;
   onOpenVersionHistory?: () => void;
   onOpenInterviewMode?: () => void;
+  isRunning?: boolean;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -41,6 +42,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onRunCode,
   onOpenVersionHistory,
   onOpenInterviewMode,
+  isRunning = false,
 }) => {
   const navigate = useNavigate();
   const { 
@@ -207,9 +209,10 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           size="sm"
           className="h-7 text-xs px-3 bg-emerald-600 hover:bg-emerald-500 focus:ring-emerald-500"
           onClick={onRunCode}
-          leftIcon={<Play className="w-3.5 h-3.5 fill-current" />}
+          disabled={isRunning}
+          leftIcon={isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
         >
-          Run
+          {isRunning ? 'Running...' : 'Run'}
         </Button>
 
         <div className="h-4 w-px bg-border-subtle mx-1" />

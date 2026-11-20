@@ -39,6 +39,21 @@ export const WorkspacePage: React.FC = () => {
   // Execution logs & history
   const [logs, setLogs] = useState<Array<{ id: string; type: 'info' | 'success' | 'error' | 'header'; text: string; timestamp: string }>>([]);
   const [executionHistory, setExecutionHistory] = useState<ExecutionResponse[]>([]);
+  const [isRunningCode, setIsRunningCode] = useState(false);
+  const [customStdin, setCustomStdin] = useState<string>(() => {
+    try {
+      return localStorage.getItem('codesync_stdin') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const handleStdinChange = (val: string) => {
+    setCustomStdin(val);
+    try {
+      localStorage.setItem('codesync_stdin', val);
+    } catch {}
+  };
 
   // Adjustable window dimensions (with local persistence)
   const [leftWidth, setLeftWidth] = useState<number>(() => {
@@ -306,7 +321,7 @@ export const WorkspacePage: React.FC = () => {
   }, [fileContents, activeFileId, dirtyFiles, saveActiveFile]);
 
   // 4. Code Execution Handler
-  const handleRunCode = async () => {
+  const handleRunCode = async (overrideStdin?: string) => {
     const editorState = useEditorStore.getState();
     const currentActiveFile = editorState.openTabs.find((t) => t.id === editorState.activeFileId);
 
@@ -314,6 +329,9 @@ export const WorkspacePage: React.FC = () => {
       alert('Please select and open a file to execute.');
       return;
     }
+
+    const stdinToSend = overrideStdin !== undefined ? overrideStdin : customStdin;
+    setIsRunningCode(true);
 
     // Auto-detect real execution language from file extension
     const lowerName = currentActiveFile.name.toLowerCase();
@@ -368,6 +386,7 @@ export const WorkspacePage: React.FC = () => {
         language: runLanguage,
         entrypoint: currentActiveFile.name,
         files: filesPayload,
+        stdin: stdinToSend.trim() ? stdinToSend : undefined,
         timeout_sec: 10,
       });
 
@@ -421,6 +440,8 @@ export const WorkspacePage: React.FC = () => {
           timestamp: new Date().toLocaleTimeString(),
         },
       ]);
+    } finally {
+      setIsRunningCode(false);
     }
   };
 
@@ -507,6 +528,7 @@ export const WorkspacePage: React.FC = () => {
         onRunCode={handleRunCode}
         onOpenVersionHistory={() => setIsHistoryModalOpen(true)}
         onOpenInterviewMode={() => setIsInterviewModalOpen(true)}
+        isRunning={isRunningCode}
       />
 
       {/* 2. Main Resizable IDE Workspace Grid */}
@@ -582,6 +604,10 @@ export const WorkspacePage: React.FC = () => {
                   logs={logs}
                   executionHistory={executionHistory}
                   onClearLogs={() => setLogs([])}
+                  customStdin={customStdin}
+                  onStdinChange={handleStdinChange}
+                  onRunCodeWithStdin={handleRunCode}
+                  isRunning={isRunningCode}
                 />
               </div>
             </>
